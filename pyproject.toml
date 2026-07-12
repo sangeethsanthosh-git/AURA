@@ -1,0 +1,13 @@
+[project]
+name = "aura-piper-tts"
+version = "0.1.0"
+description = "A small uv-managed Python project for local Piper text-to-speech."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = []
+
+[project.scripts]
+aura-tts = "app:main"
+
+[tool.uv]
+package = false
