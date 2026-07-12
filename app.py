@@ -1,83 +1,47 @@
-import subprocess
-import re
+import logging
 import os
 import platform
-from pathlib import Path
+import sys
 from shutil import which
 
-# ----------------------------
-# Configuration
-# ----------------------------
-BASE_DIR = Path(__file__).resolve().parent
-OUTPUT_DIR = BASE_DIR / "output"
-VOICE_MODEL = BASE_DIR / "voices" / "en_US-lessac-medium.onnx"
-OLLAMA_MODEL = "gemma3:1b"
+from conversation_manager import ConversationManager
+from language_manager import LanguageManager
+from model_router import ModelRouter
+from tts_manager import TTSManager
 
-if platform.system() == "Windows":
-    PIPER_PATH = BASE_DIR / "tools" / "piper" / "piper" / "piper.exe"
-else:
-    PIPER_PATH = BASE_DIR / "tools" / "piper" / "piper" / "piper"
-
-# ----------------------------
-# Clean text for Piper
-# ----------------------------
-
-def clean_text(text):
-    # Remove ANSI escape sequences
-    ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
-    text = ansi_escape.sub('', text)
-
-    # Remove artifacts like 3DK, 5DK, 12DK
-    text = re.sub(r'\b\d+DK\b', '', text)
-
-    # Remove markdown
-    text = re.sub(r'\*\*(.*?)\*\*', r'\1', text)
-    text = re.sub(r'\*(.*?)\*', r'\1', text)
-    text = re.sub(r'`(.*?)`', r'\1', text)
-
-    # Remove emojis and unsupported symbols
-    text = re.sub(r'[^\w\s.,!?;:\'()\-]', '', text)
-
-    # Remove extra spaces
-    text = re.sub(r'\s+', ' ', text)
-
-    return text.strip()
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+)
+LOGGER = logging.getLogger(__name__)
 
 
-def print_header():
+def configure_console_encoding() -> None:
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    if hasattr(sys.stderr, "reconfigure"):
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+
+
+def print_header() -> None:
     os.system("cls" if platform.system() == "Windows" else "clear")
     print()
     print("+" + "-" * 48 + "+")
     print("|" + "AURA Assistant".center(48) + "|")
-    print("|" + "Local AI voice companion".center(48) + "|")
+    print("|" + "Local multilingual AI companion".center(48) + "|")
     print("+" + "-" * 48 + "+")
-    print("Type exit, quit, or bye to close.\n")
+    print("Type exit, quit, or bye to close.")
+    print("Try: Speak in Malayalam")
+    print("Try: Switch back to English\n")
 
 
-def print_message(name, message):
+def print_message(name: str, message: str) -> None:
     print(f"{name}:")
     print(f"  {message}\n")
 
 
-def play_audio(audio_file):
-    if platform.system() == "Windows":
-        import winsound
-
-        winsound.PlaySound(str(audio_file), winsound.SND_FILENAME)
-        return
-
-    player = "aplay" if which("aplay") else "paplay"
-    subprocess.run([player, str(audio_file)], check=True)
-
-
-def check_requirements():
-    missing = []
-
-    if not PIPER_PATH.exists():
-        missing.append(f"Piper was not found at {PIPER_PATH}")
-
-    if not VOICE_MODEL.exists():
-        missing.append(f"Voice model was not found at {VOICE_MODEL}")
+def check_requirements(tts_manager: TTSManager) -> bool:
+    missing = tts_manager.check_requirements()
 
     if which("ollama") is None:
         missing.append("Ollama was not found. Install Ollama and make sure it is in PATH.")
@@ -93,97 +57,54 @@ def check_requirements():
     return True
 
 
-# ----------------------------
-# Text-to-Speech (Piper)
-# ----------------------------
-def speak(text):
-    if not text:
-        return
+def main() -> None:
+    configure_console_encoding()
 
-    OUTPUT_DIR.mkdir(exist_ok=True)
-    outfile = OUTPUT_DIR / "speech.wav"
+    language_manager = LanguageManager()
+    model_router = ModelRouter()
+    conversation_manager = ConversationManager(language_manager, model_router)
+    tts_manager = TTSManager()
 
-    if outfile.exists():
-        outfile.unlink()
-
-    subprocess.run(
-        [
-            str(PIPER_PATH),
-            "--model",
-            str(VOICE_MODEL),
-            "--output_file",
-            str(outfile)
-        ],
-        input=text,
-        text=True,
-        check=True
-    )
-
-    play_audio(outfile)
-
-# ----------------------------
-# Ollama
-# ----------------------------
-def ask_ollama(prompt):
-    system = (
-        "You are Aura, a desktop voice assistant. "
-        "Answer in 2 or 3 short sentences. "
-        "Do not use markdown, emojis, bullet points, or special symbols."
-    )
-
-    full_prompt = f"{system}\n\nUser: {prompt}\nAssistant:"
-
-    result = subprocess.run(
-        ["ollama", "run", OLLAMA_MODEL],
-        input=full_prompt,
-        capture_output=True,
-        text=True
-    )
-
-    return result.stdout.strip()
-
-# ----------------------------
-# Main
-# ----------------------------
-def main():
-    if not check_requirements():
+    if not check_requirements(tts_manager):
         return
 
     print_header()
 
     greeting = (
-        "Hello Sangeeth. "
-        "I am Aura, your personal AI assistant. "
+        "Hello Sangeeth. I am Aura, your personal AI assistant. "
         "How can I help you today?"
     )
 
     print_message("Aura", greeting)
-    speak(greeting)
+    tts_manager.speak(greeting, language_manager.current_language)
 
     while True:
-
         user_input = input("You > ").strip()
 
         if not user_input:
             continue
 
-        if user_input.lower() in ["exit", "quit", "bye"]:
-
+        if user_input.lower() in {"exit", "quit", "bye"}:
             goodbye = "Goodbye Sangeeth. Have a wonderful day."
-
             print()
             print_message("Aura", goodbye)
-            speak(goodbye)
+            tts_manager.speak(goodbye, language_manager.current_language)
             break
 
         print("\nAura is thinking...\n")
-        response = ask_ollama(user_input)
 
-        response = clean_text(response)
+        try:
+            response, selection = conversation_manager.ask(user_input)
+        except RuntimeError as exc:
+            LOGGER.exception("AURA failed to answer.")
+            print_message("Aura", f"Sorry, something went wrong: {exc}")
+            continue
 
+        visible_language = language_manager.state.name
+        print(f"Language: {visible_language} | Model: {selection.model}\n")
         print_message("Aura", response)
+        tts_manager.speak(response, language_manager.current_language)
 
-        speak(response)
 
 if __name__ == "__main__":
     main()
