@@ -1,0 +1,50 @@
+{
+  "version": 2,
+  "profile": {
+    "name": "Sangeeth",
+    "age": "",
+    "education": "",
+    "occupation": "",
+    "company": "",
+    "location": ""
+  },
+  "preferences": {
+    "favorite_language": "Python",
+    "preferred_ai": "",
+    "operating_system": ""
+  },
+  "skills": [],
+  "goals": [],
+  "conversation": [
+    "My name is Sangeeth."
+  ],
+  "projects": [],
+  "long_term": [
+    {
+      "category": "PERSONAL_FACT",
+      "content": "User name is Sangeeth.",
+      "importance": "HIGH",
+      "status": "ACTIVE",
+      "source": "user",
+      "confidence": 0.98,
+      "memory_id": "f9f9a62ffefe4df7816c8c5f4422c2e6",
+      "created_at": "2026-08-17T10:40:27.157393+00:00",
+      "updated_at": "2026-08-17T13:25:17.069382+00:00",
+      "access_count": 15,
+      "last_accessed": ""
+    },
+    {
+      "category": "PREFERENCE",
+      "content": "User prefers Python.",
+      "importance": "HIGH",
+      "status": "ACTIVE",
+      "source": "user",
+      "confidence": 0.92,
+      "memory_id": "1abb689a528240789fb12cd8da6861a3",
+      "created_at": "2026-08-17T11:31:17.287097+00:00",
+      "updated_at": "2026-08-17T11:31:17.287101+00:00",
+      "access_count": 0,
+      "last_accessed": ""
+    }
+  ]
+}

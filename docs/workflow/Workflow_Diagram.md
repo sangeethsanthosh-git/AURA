@@ -1,0 +1,17 @@
+# Workflow Diagram
+
+```mermaid
+flowchart TD
+    U[User] --> INPUT[Input]
+    INPUT --> LANG[Language Detection]
+    LANG --> INTENT[Intent Classification]
+    INTENT --> ROUTER[Smart Router]
+    ROUTER --> SM[Service Manager]
+    SM --> SELECT[Provider Selection]
+    SELECT --> AI[AI / API Provider]
+    AI --> FORMAT[Response Formatter]
+    FORMAT --> PIPER[Piper TTS]
+    FORMAT --> DISPLAY[Display]
+    PIPER --> U
+    DISPLAY --> U
+```

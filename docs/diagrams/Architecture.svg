@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="520" viewBox="0 0 1200 520">
+  <style>
+    .box{rx:10;stroke:#243b53;stroke-width:2}
+    .text{font-family:Arial,sans-serif;font-size:18px;fill:#102a43;text-anchor:middle}
+    .small{font-size:14px}
+    .arrow{stroke:#334e68;stroke-width:3;marker-end:url(#arrow)}
+  </style>
+  <defs><marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto"><path d="M2,2 L10,6 L2,10 Z" fill="#334e68"/></marker></defs>
+  <rect x="40" y="210" width="120" height="70" class="box" fill="#d9e8ff"/>
+  <text x="100" y="252" class="text">User</text>
+  <rect x="220" y="210" width="130" height="70" class="box" fill="#d8f3dc"/>
+  <text x="285" y="252" class="text">CLI</text>
+  <rect x="410" y="195" width="170" height="100" class="box" fill="#fff3bf"/>
+  <text x="495" y="235" class="text">Smart Router</text>
+  <text x="495" y="262" class="text small">Intent + Fallback</text>
+  <rect x="640" y="195" width="180" height="100" class="box" fill="#ffe3e3"/>
+  <text x="730" y="235" class="text">Service Manager</text>
+  <text x="730" y="262" class="text small">Provider Dispatch</text>
+  <rect x="880" y="120" width="250" height="250" class="box" fill="#eadcff"/>
+  <text x="1005" y="165" class="text">Providers</text>
+  <text x="1005" y="205" class="text small">Ollama | Groq | HF</text>
+  <text x="1005" y="235" class="text small">Wikipedia</text>
+  <text x="1005" y="265" class="text small">Open-Meteo</text>
+  <text x="1005" y="295" class="text small">OpenStreetMap</text>
+  <line x1="160" y1="245" x2="220" y2="245" class="arrow"/>
+  <line x1="350" y1="245" x2="410" y2="245" class="arrow"/>
+  <line x1="580" y1="245" x2="640" y2="245" class="arrow"/>
+  <line x1="820" y1="245" x2="880" y2="245" class="arrow"/>
+</svg>

@@ -4,7 +4,12 @@ version = "0.1.0"
 description = "A small uv-managed Python project for local Piper text-to-speech."
 readme = "README.md"
 requires-python = ">=3.11"
-dependencies = []
+dependencies = [
+    "faster-whisper>=1.0",
+    "PyQt6>=6.7",
+    "pypdf>=5.0",
+    "sounddevice>=0.5",
+]
 
 [project.scripts]
 aura-tts = "app:main"

@@ -1,0 +1,42 @@
+flowchart TD
+    user([User])
+    cli[CLI Interface]
+    language[Language Detection]
+    intent[Intent Classifier]
+    router[Smart Router]
+    manager[Service Manager]
+    formatter[Response Formatter]
+    tts[Piper TTS]
+
+    ollama[(Ollama Local LLM)]
+    groq[(Groq API)]
+    hf[(Hugging Face API)]
+    wiki[(Wikipedia API)]
+    weather[(Open-Meteo API)]
+    maps[(OpenStreetMap API)]
+
+    user -->|User input| cli
+    cli -->|Raw text| language
+    language -->|Language + text| intent
+    intent -->|Intent + confidence| router
+    router -->|Provider request| manager
+
+    manager --> ollama
+    manager --> groq
+    manager --> hf
+    manager --> wiki
+    manager --> weather
+    manager --> maps
+
+    ollama --> manager
+    groq --> manager
+    hf --> manager
+    wiki --> manager
+    weather --> manager
+    maps --> manager
+
+    manager -->|Structured response| formatter
+    formatter -->|Display metadata + assistant message| cli
+    formatter -->|Assistant message only| tts
+    cli -->|Display output| user
+    tts -->|Speech output| user

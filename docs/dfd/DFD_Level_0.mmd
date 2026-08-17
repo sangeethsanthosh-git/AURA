@@ -1,0 +1,9 @@
+flowchart LR
+    user([User])
+    aura[AURA Intelligent Desktop Assistant]
+    providers[(AI Providers and Web APIs)]
+
+    user -->|Text / voice command| aura
+    aura -->|Formatted answer / speech| user
+    aura -->|Request when required| providers
+    providers -->|AI response / live data| aura

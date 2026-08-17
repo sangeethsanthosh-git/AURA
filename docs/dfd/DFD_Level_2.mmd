@@ -1,0 +1,50 @@
+flowchart TD
+    input([User Input])
+
+    memory[1. Memory Detection]
+    classifier[2. Intent Classification]
+    selector[3. Provider Selection]
+    fallback[4. Fallback Manager]
+    formatter[5. Response Formatter]
+
+    memory_store[(Temporary Session Memory)]
+    local_math[Local Math Engine]
+    ollama[(Ollama)]
+    groq[(Groq)]
+    hf[(Hugging Face)]
+    wiki[(Wikipedia)]
+    weather[(Open-Meteo)]
+    maps[(OpenStreetMap)]
+    location[Location Service]
+
+    output([Display + Speech Response])
+
+    input --> memory
+    memory -->|Personal memory request| memory_store
+    memory_store --> formatter
+
+    memory -->|Non-memory request| classifier
+    classifier --> selector
+    selector --> fallback
+
+    fallback -->|Mathematics| local_math
+    fallback -->|Conversation / fallback| ollama
+    fallback -->|Programming / reasoning| groq
+    fallback -->|Translation| hf
+    fallback -->|Knowledge| wiki
+    fallback -->|Weather| weather
+    fallback -->|Maps| maps
+
+    weather -->|Current location needed| location
+    location --> weather
+
+    local_math --> formatter
+    ollama --> formatter
+    groq --> formatter
+    hf --> formatter
+    wiki --> formatter
+    weather --> formatter
+    maps --> formatter
+
+    formatter -->|Metadata for display| output
+    formatter -->|Assistant message for TTS| output
