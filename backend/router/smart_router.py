@@ -6,6 +6,7 @@ import logging
 import time
 from typing import Any, Callable
 
+from backend.context import ContextBuilder, TemporaryContextStore, collect_context_measurements
 from backend.router.fallback_manager import FallbackManager
 from backend.router.intent_classifier import Intent, IntentClassifier, IntentResult
 from backend.router.knowledge_handler import KnowledgeHandler
@@ -22,6 +23,10 @@ from backend.router.tool_integrity import deterministic_tool_result, safe_math_r
 from backend.router.translation_handler import TranslationHandler
 from backend.router.weather_handler import WeatherHandler
 from backend.utils.responses import error_response
+from backend.actions.manager import ActionManager
+from backend.agent.controller import TaskController
+from backend.vision.manager import VisionManager
+from backend.web.manager import WebIntelligenceManager
 
 LOGGER = logging.getLogger(__name__)
 
@@ -44,6 +49,15 @@ class SmartRouter:
         self.fallbacks = FallbackManager()
         self.formatter = ResponseFormatter()
         self.math_engine = MathEngine()
+        self.temporary_context = TemporaryContextStore()
+        self.vision_manager = VisionManager(temporary_context=self.temporary_context)
+        self.action_manager = ActionManager(verifier=None)
+        self.action_manager.verifier.vision_manager = self.vision_manager
+        self.task_controller = TaskController(self.action_manager)
+        self.web_manager = WebIntelligenceManager(self.service_manager)
+        self.web_manager.temporary_context = self.temporary_context
+        self.task_controller.temporary_context = self.temporary_context
+        self.context_builder = ContextBuilder(self.memory_manager, self.knowledge_manager, temporary_store=self.temporary_context)
         self.handlers: dict[Intent, Callable[[IntentResult, str], dict[str, Any]]] = {
             Intent.MEMORY: self._handle_memory,
             Intent.MATHEMATICS: self._handle_math,
@@ -51,6 +65,7 @@ class SmartRouter:
             Intent.PROGRAMMING: lambda _, prompt: self._programming().handle(prompt),
             Intent.TRANSLATION: lambda _, prompt: self._translation().handle(prompt),
             Intent.GENERAL_KNOWLEDGE: lambda classification, prompt: self._knowledge().handle(classification, prompt),
+            Intent.WEB_INTELLIGENCE: lambda _, prompt: self.web_manager.answer(prompt),
             Intent.WEATHER: lambda classification, _: self._weather().handle(classification),
             Intent.LOCATION: lambda classification, _: self.service_manager.ask("maps", classification.query),
             Intent.MAPS: lambda classification, _: self.service_manager.ask("maps", classification.query),
@@ -58,6 +73,8 @@ class SmartRouter:
             Intent.DOCUMENTS: lambda _, prompt: self._knowledge_base().handle_knowledge(prompt),
             Intent.RAG: lambda _, prompt: self._knowledge_base().handle_knowledge(prompt),
             Intent.FILE_OPERATIONS: lambda _, prompt: self._knowledge_base().handle_file_operation(prompt),
+            Intent.COMPUTER_ACTIONS: lambda _, prompt: self.task_controller.handle(prompt),
+            Intent.VISION: lambda _, prompt: self.vision_manager.analyze_screen(prompt),
             Intent.FINANCE: lambda *_: error_response("finance", "finance", "Finance service is not installed."),
             Intent.SYSTEM_COMMANDS: lambda *_: error_response("system", "system_commands", "System command handling is available in the CLI."),
         }
@@ -68,8 +85,13 @@ class SmartRouter:
             classification = self._detect_memory_first(user_input)
             plan = self.provider_selector.select(classification.intent)
             handler = self.handlers.get(classification.intent, self._unknown)
-            response = handler(classification, user_input)
-            if classification.intent != Intent.MEMORY:
+            prompt, context_bundle = self.context_builder.augment_prompt(user_input, classification.intent)
+            response = handler(classification, prompt)
+            response.setdefault("data", {})
+            if isinstance(response["data"], dict):
+                response["data"]["context_debug"] = context_bundle.to_debug_dict()
+                response["data"]["context_measurements"] = collect_context_measurements(context_bundle)
+            if classification.intent not in {Intent.MEMORY, Intent.VISION}:
                 self.memory_manager.observe_interaction(user_input, response)
             success_provider = self._success_provider(response, plan.provider)
             return self.formatter.format(response, classification, plan, started_at, success_provider)
@@ -179,11 +201,15 @@ class SmartRouter:
             "ollama": "Ollama",
             "huggingface": "Hugging Face",
             "wikipedia": "Wikipedia",
+            "web": "Web Intelligence",
             "weather": "Open-Meteo",
             "maps": "OpenStreetMap",
             "math": "Local Math Engine",
             "memory": "MemoryManager",
             "knowledge": "Local Knowledge",
+            "actions": "AURA HANDS",
+            "agent": "AURA Agent Loop",
+            "vision": "AURA EYES",
         }
         return names.get(provider, default)
 

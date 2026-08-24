@@ -4,6 +4,8 @@ from dataclasses import dataclass, field
 from language_manager import LanguageManager
 from model_router import ModelRouter, ModelSelection
 from ollama_client import OllamaClient, OllamaMessage
+from backend.personality import AURAPersonality, DEFAULT_PERSONALITY
+from backend.session_context import SessionContext
 
 LOGGER = logging.getLogger(__name__)
 
@@ -26,10 +28,14 @@ class ConversationManager:
         language_manager: LanguageManager,
         model_router: ModelRouter,
         ollama_client: OllamaClient | None = None,
+        personality: AURAPersonality = DEFAULT_PERSONALITY,
+        session_context: SessionContext | None = None,
     ) -> None:
         self.language_manager = language_manager
         self.model_router = model_router
         self.ollama_client = ollama_client or OllamaClient()
+        self.personality = personality
+        self.session_context = session_context or SessionContext()
         self.state = ConversationState()
 
     def ask(self, user_text: str) -> tuple[str, ModelSelection]:
@@ -41,7 +47,15 @@ class ConversationManager:
             self.state.selected_model = selection.model
             self.add_message("user", user_text)
             self.add_message("assistant", language_reply)
+            self.session_context.add_turn("user", user_text)
+            self.session_context.add_turn("assistant", language_reply)
             return language_reply, selection
+
+        detected_language = self.language_manager.detect_text_language(user_text)
+        if detected_language == "ml" and not self.language_manager.is_locked:
+            self.language_manager.set_language("ml", manually_locked=False)
+        elif detected_language == "mixed" and not self.language_manager.is_locked:
+            self.language_manager.set_language("en", manually_locked=False)
 
         selection = self.model_router.select_model(self.language_manager.current_language)
         self.state.selected_model = selection.model
@@ -61,6 +75,8 @@ class ConversationManager:
 
         assistant_text = result.content
         self.add_message("assistant", assistant_text)
+        self.session_context.add_turn("user", user_text)
+        self.session_context.add_turn("assistant", assistant_text)
         return assistant_text, selection
 
     def add_message(self, role: str, content: str) -> None:
@@ -70,7 +86,10 @@ class ConversationManager:
         messages = [
             OllamaMessage(
                 role="system",
-                content=self.language_manager.system_prompt(),
+                content=self.personality.system_prompt(
+                    self.language_manager.system_prompt(),
+                    self.session_context.relevant_context_for(self.state.messages[-1].content if self.state.messages else ""),
+                ),
             )
         ]
 

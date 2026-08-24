@@ -98,10 +98,14 @@ class ResponseFormatter:
             "groq": "Groq API",
             "huggingface": "Hugging Face Router",
             "wikipedia": "Wikipedia API",
+            "web": "Web Intelligence",
             "weather": "Live Weather API",
             "maps": "OpenStreetMap Nominatim",
             "location": "Location Service",
             "math": "Python Math Engine",
+            "actions": "AURA HANDS",
+            "agent": "AURA Agent Loop",
+            "vision": "AURA EYES",
         }
         return sources.get(provider, plan.source)
 

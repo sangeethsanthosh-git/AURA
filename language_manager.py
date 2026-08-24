@@ -3,6 +3,7 @@ import re
 from dataclasses import dataclass
 
 from aura_config import DEFAULT_LANGUAGE, WHISPER_MALAYALAM_CONFIDENCE
+from backend.language.detector import LanguageDetector, LanguageRoute
 
 LOGGER = logging.getLogger(__name__)
 
@@ -26,6 +27,7 @@ class LanguageState:
 class LanguageManager:
     def __init__(self, default_language: str = DEFAULT_LANGUAGE) -> None:
         self.state = LanguageState(code=default_language)
+        self.detector = LanguageDetector()
 
     @property
     def current_language(self) -> str:
@@ -38,17 +40,14 @@ class LanguageManager:
     def system_prompt(self) -> str:
         if self.state.code == "ml":
             return (
-                "You are AURA.\n\n"
                 "The current conversation language is Malayalam.\n\n"
-                "Reply ONLY in Malayalam Unicode.\n\n"
-                "Never use English unless the user explicitly requests it.\n\n"
+                "Reply in natural Malayalam Unicode when the user is using Malayalam.\n\n"
+                "Preserve English technical terms such as Python, API, RAG, and file when that sounds natural.\n\n"
                 "Never output Tamil, Telugu or Hindi.\n\n"
-                "Never use Latin transliteration.\n\n"
-                "Your Malayalam should sound natural and conversational."
+                "Your Malayalam should sound natural and conversational, not overly formal."
             )
 
         return (
-            "You are AURA, a helpful desktop AI assistant.\n\n"
             "Always answer in fluent English.\n\n"
             "Be concise, friendly and conversational."
         )
@@ -102,3 +101,11 @@ class LanguageManager:
             return True
 
         return False
+
+    def detect_text_language(self, text: str) -> str:
+        detected = self.detector.detect(text)
+        if detected.route == LanguageRoute.MALAYALAM:
+            return "ml"
+        if detected.route == LanguageRoute.MIXED:
+            return "mixed"
+        return "en"

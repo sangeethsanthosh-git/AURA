@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Protocol
 
 from backend.config.config import Settings, settings
+from backend.language.detector import LanguageDetector, LanguageRoute
 from backend.voice.models import TranscriptionResult
 from language_manager import LanguageManager
 from speech_manager import SpeechManager
@@ -72,3 +73,57 @@ class FasterWhisperProvider:
                 compute_type=self.config.stt_compute_type,
             )
         return self._speech_manager
+
+
+class ManglishWhisperCandidateProvider(FasterWhisperProvider):
+    """Candidate provider for future Manglish benchmarking.
+
+    The model is intentionally not auto-downloaded. It becomes usable only if
+    explicitly configured and available through Faster-Whisper-compatible model
+    loading.
+    """
+
+    engine = "whisper-small-manglish-candidate"
+
+    def __init__(self, language_manager: LanguageManager | None = None, config: Settings = settings) -> None:
+        super().__init__(language_manager, config)
+        self.model_reference = "jona276/whisper-small-manglish"
+
+
+class SpeechToTextRouter:
+    """Routes STT provider choice while keeping models lazily loaded."""
+
+    def __init__(
+        self,
+        default_provider: SpeechToTextProvider,
+        manglish_provider: SpeechToTextProvider | None = None,
+        detector: LanguageDetector | None = None,
+    ) -> None:
+        self.default_provider = default_provider
+        self.manglish_provider = manglish_provider
+        self.detector = detector or LanguageDetector()
+
+    @property
+    def engine(self) -> str:
+        return self.default_provider.engine
+
+    def transcribe(self, audio_path: Path, duration_seconds: float = 0.0) -> TranscriptionResult:
+        # Audio-language pre-routing needs audio classification; for V1, keep the
+        # reliable default provider and annotate text route after transcription.
+        result = self.default_provider.transcribe(audio_path, duration_seconds)
+        if result.success and result.text:
+            detected = self.detector.detect(result.text)
+            language = result.language
+            if detected.route == LanguageRoute.MIXED:
+                language = "mixed"
+            elif detected.route == LanguageRoute.MALAYALAM:
+                language = "ml"
+            return TranscriptionResult(
+                success=True,
+                text=result.text,
+                language=language,
+                confidence=result.confidence,
+                duration_seconds=result.duration_seconds,
+                engine=result.engine,
+            )
+        return result

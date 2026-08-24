@@ -5,6 +5,7 @@ import sys
 from dataclasses import dataclass
 from typing import Any
 from shutil import which
+from backend.voice_studio.normalization import SpeechNormalizer
 
 from backend.router.service_manager import ServiceManager
 from backend.router.smart_router import SmartRouter
@@ -32,6 +33,7 @@ class AssistantOutput:
 
     metadata: dict[str, str]
     assistant_message: str
+    spoken_text: str | None = None
 
 
 def configure_console_encoding() -> None:
@@ -52,7 +54,7 @@ def print_header() -> None:
     print("Commands: /chat, /weather Kochi, /wiki Alan Turing, /groq hello")
     print("Commands: /hf explain transformers, /map Kochi")
     print("Commands: /file C:\\path\\doc.pdf, /knowledge add C:\\path\\notes.md")
-    print("Commands: /voice")
+    print("Commands: /voice, /screen")
     print("Try: Speak in Malayalam")
     print("Try: Switch back to English\n")
 
@@ -101,11 +103,15 @@ def build_assistant_output(response: dict[str, Any]) -> AssistantOutput:
         "Source": str(route.get("source", "Unknown")),
     }
 
+    normalizer = SpeechNormalizer()
+
     if not response.get("ok"):
         error = response.get("error") or {}
+        message = f"Sorry, {error.get('message', 'the service request failed.')}"
         return AssistantOutput(
             metadata=metadata,
-            assistant_message=f"Sorry, {error.get('message', 'the service request failed.')}",
+            assistant_message=message,
+            spoken_text=normalizer.normalize(message, str(route.get("language", "en")).lower()[:2]),
         )
 
     data = response.get("data", {})
@@ -134,6 +140,8 @@ def build_assistant_output(response: dict[str, Any]) -> AssistantOutput:
     elif provider == "wikipedia" and action == "search":
         results = data.get("results", [])
         body = "\n".join(f"- {item.get('title')}" for item in results) or "No Wikipedia results found."
+    elif provider == "web":
+        body = str(response.get("message") or "")
     elif provider == "knowledge":
         body = str(response.get("message") or "")
         sources = data.get("sources") if isinstance(data, dict) else None
@@ -149,7 +157,11 @@ def build_assistant_output(response: dict[str, Any]) -> AssistantOutput:
     else:
         body = str(data)
 
-    return AssistantOutput(metadata=metadata, assistant_message=body)
+    return AssistantOutput(
+        metadata=metadata,
+        assistant_message=body,
+        spoken_text=normalizer.normalize(body, str(route.get("language", "en")).lower()[:2]),
+    )
 
 
 def normalize_cli_command(command: str) -> tuple[str, str] | None:
@@ -211,6 +223,18 @@ def normalize_cli_command(command: str) -> tuple[str, str] | None:
             return "Knowledge", "List knowledge documents"
         query = rest.strip() if verb.lower() == "search" and rest.strip() else argument
         return "Knowledge", f"Search my knowledge for {query}"
+
+    if name == "/screen":
+        lowered = argument.lower()
+        if lowered in {"text", "read", "ocr"}:
+            return "Aura", "Read the text on my screen."
+        if lowered in {"describe", "description"}:
+            return "Aura", "What do you see on my screen?"
+        if lowered in {"app", "application", "window"}:
+            return "Aura", "What application is currently open?"
+        if lowered == "verify":
+            return "Aura", "Verify the current screen state."
+        return "Aura", argument or "Look at my screen."
 
     return "Aura", f"Unknown command: {name}"
 
@@ -282,11 +306,15 @@ def main() -> None:
                 print()
                 print_message(name, routed_input)
                 continue
+            if user_input.lower().startswith("/screen"):
+                print_message("Aura", "AURA is looking at your screen...")
+            if any(term in routed_input.lower() for term in ("latest", "recent", "currently", "current version", "today", "news")):
+                print_message("Aura", "Searching the web if current information is needed...")
             response = smart_router.ask(routed_input)
             output = build_assistant_output(response)
             print_assistant_output(name, output)
             if name == "Aura":
-                tts_manager.speak(output.assistant_message, language_manager.current_language)
+                tts_manager.speak(output.spoken_text or output.assistant_message, language_manager.current_language)
             continue
 
         print("\nAura is thinking...\n")
@@ -306,7 +334,7 @@ def main() -> None:
         )
         output = build_assistant_output(routed_response)
         print_assistant_output("Aura", output)
-        tts_manager.speak(output.assistant_message, language_manager.current_language)
+        tts_manager.speak(output.spoken_text or output.assistant_message, language_manager.current_language)
 
 
 if __name__ == "__main__":

@@ -29,6 +29,7 @@ class ProviderSelector:
             Intent.PROGRAMMING: ProviderPlan("Groq", "Groq API", settings.groq_model, ("Ollama",)),
             Intent.TRANSLATION: ProviderPlan("Hugging Face", "Hugging Face Router", settings.hf_model, ("Ollama",)),
             Intent.GENERAL_KNOWLEDGE: ProviderPlan("Wikipedia", "Wikipedia API", "Ollama", ("Ollama",)),
+            Intent.WEB_INTELLIGENCE: ProviderPlan("Web Intelligence", "Bounded Web Search", "Local/Ollama"),
             Intent.WEATHER: ProviderPlan("Open-Meteo", "Live Weather API", "None"),
             Intent.LOCATION: ProviderPlan("OpenStreetMap", "OpenStreetMap Nominatim", "None"),
             Intent.MAPS: ProviderPlan("OpenStreetMap", "OpenStreetMap Nominatim", "None"),
@@ -36,6 +37,8 @@ class ProviderSelector:
             Intent.DOCUMENTS: ProviderPlan("Local Knowledge", "Local Knowledge Base", "None"),
             Intent.RAG: ProviderPlan("Local Knowledge", "Local Knowledge Base", "None"),
             Intent.FILE_OPERATIONS: ProviderPlan("Local Knowledge", "Temporary Document Context", "None"),
+            Intent.COMPUTER_ACTIONS: ProviderPlan("AURA Agent Loop", "Bounded Eyes + Hands Task Controller", "None"),
+            Intent.VISION: ProviderPlan("AURA EYES", "On-Demand Screen Vision", "Local Vision"),
             Intent.FINANCE: ProviderPlan("Finance service is not installed.", "Not installed", "None"),
             Intent.SYSTEM_COMMANDS: ProviderPlan("System", "Local CLI", "None"),
         }

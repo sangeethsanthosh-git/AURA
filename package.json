@@ -1,20 +1,89 @@
 {
-  "name": "3d-image-ring",
-  "version": "0.1.0",
+  "name": "aura-asus-desktop",
+  "version": "0.2.0",
   "private": true,
-  "type": "module",
-  "description": "A draggable 3D image carousel built with React, TypeScript, and Framer Motion.",
+  "type": "commonjs",
+  "description": "Electron + React desktop shell for the local-first AURA ASUS assistant.",
+  "main": "dist-electron/main.js",
   "scripts": {
-    "typecheck": "tsc --noEmit"
+    "dev": "vite --host 127.0.0.1",
+    "desktop:dev": "concurrently -k -n vite,electron \"npm run dev\" \"wait-on http://127.0.0.1:5173 && npm run electron:dev\"",
+    "electron:dev": "cross-env AURA_RENDERER_URL=http://127.0.0.1:5173 electron .",
+    "build": "npm run typecheck && vite build && node scripts/build-electron.mjs",
+    "dist:win": "npm run build && electron-builder --win portable --config.directories.output=\"C:\\PROJECT\\AURA ASUS EXE\"",
+    "package:portable": "npm run build && node scripts/package-portable.mjs",
+    "start": "electron .",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit && tsc -p electron/tsconfig.json --noEmit"
   },
-  "peerDependencies": {
-    "framer-motion": "^12.0.0",
+  "dependencies": {
     "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react-dom": "^19.0.0",
+    "vite": "^7.0.0"
   },
   "devDependencies": {
+    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/react": "^16.1.0",
+    "@types/node": "^22.10.2",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
-    "typescript": "^5.8.0"
+    "@vitejs/plugin-react": "^5.0.0",
+    "@vitest/ui": "^3.0.0",
+    "concurrently": "^10.0.5",
+    "cross-env": "^7.0.3",
+    "electron": "^43.4.1",
+    "electron-builder": "^26.15.3",
+    "esbuild": "^0.28.2",
+    "jsdom": "^25.0.1",
+    "typescript": "^5.8.0",
+    "vitest": "^3.0.0",
+    "wait-on": "^9.1.0"
+  },
+  "build": {
+    "appId": "local.aura.asus",
+    "productName": "AURA ASUS",
+    "asar": true,
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "dist-electron/**/*",
+      "backend/**/*",
+      "ui/**/*",
+      "app.py",
+      "aura_config.py",
+      "config.py",
+      "conversation_manager.py",
+      "language_manager.py",
+      "model_router.py",
+      "ollama_client.py",
+      "speech_manager.py",
+      "tts_manager.py",
+      "pyproject.toml",
+      "uv.lock",
+      "package.json"
+    ],
+    "asarUnpack": [
+      "backend/**/*",
+      "ui/**/*",
+      "app.py",
+      "aura_config.py",
+      "config.py",
+      "conversation_manager.py",
+      "language_manager.py",
+      "model_router.py",
+      "ollama_client.py",
+      "speech_manager.py",
+      "tts_manager.py",
+      "pyproject.toml",
+      "uv.lock"
+    ],
+    "win": {
+      "target": [
+        "portable"
+      ],
+      "artifactName": "${productName}-${version}-portable.${ext}"
+    }
   }
 }

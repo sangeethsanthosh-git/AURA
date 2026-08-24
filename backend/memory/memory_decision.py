@@ -26,6 +26,9 @@ class MemoryDecisionEngine:
         "tell me about me",
     )
     CASUAL_TERMS = {"hello", "hi", "hey", "thanks", "thank you", "how are you"}
+    CURRENT_INFO_TERMS = ("today", "latest", "recent", "current", "news", "weather", "stock price", "search")
+    AMBIGUOUS_REMEMBER_TERMS = ("remember this article", "remember this page", "remember this website", "remember this search")
+    SENSITIVE_TERMS = ("password", "api key", "secret", "token", "credit card", "bank account")
 
     def plan(self, text: str) -> MemoryPlan:
         normalized = normalize_text(text)
@@ -35,6 +38,10 @@ class MemoryDecisionEngine:
             return MemoryPlan(reason="Math request does not need memory.")
         if lowered in self.CASUAL_TERMS or lowered.strip("?!.,") in self.CASUAL_TERMS:
             return MemoryPlan(RetrievalDecision.SESSION, StorageDecision.SESSION_ONLY, "Casual message kept only in session.", confidence=0.75)
+        if any(term in lowered for term in self.SENSITIVE_TERMS) and lowered.startswith(("remember ", "remember that ", "remember this ")):
+            return MemoryPlan(RetrievalDecision.SESSION, StorageDecision.ASK_USER, "Sensitive memory requires explicit confirmation.", confidence=0.99)
+        if lowered.startswith(self.AMBIGUOUS_REMEMBER_TERMS):
+            return MemoryPlan(RetrievalDecision.SESSION, StorageDecision.ASK_USER, "Ambiguous external content memory requires confirmation.", confidence=0.92)
         if lowered.startswith(("remember ", "remember that ", "remember this ")):
             return MemoryPlan(RetrievalDecision.SESSION, StorageDecision.LONG_TERM, "Explicit remember command.", confidence=0.98)
         if lowered.startswith(("forget ", "remove ", "delete memory")):
@@ -47,6 +54,8 @@ class MemoryDecisionEngine:
             return MemoryPlan(RetrievalDecision.NONE, StorageDecision.LONG_TERM, "Stable fact or preference detected.", category=self._category(lowered), confidence=0.86)
         if self._looks_like_daily_context(lowered):
             return MemoryPlan(RetrievalDecision.SESSION, StorageDecision.DAILY, "Useful daily context detected.", category=MemoryCategory.IMPORTANT_CONTEXT.value, confidence=0.72)
+        if any(term in lowered for term in self.CURRENT_INFO_TERMS):
+            return MemoryPlan(RetrievalDecision.SESSION, StorageDecision.SESSION_ONLY, "Volatile/current information is temporary by default.", confidence=0.78)
         return MemoryPlan(RetrievalDecision.NONE, StorageDecision.DO_NOT_STORE, "No durable memory needed.", confidence=0.60)
 
     @staticmethod

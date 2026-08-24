@@ -26,6 +26,7 @@ class AuraResponse:
 
     text: str
     success: bool
+    spoken_text: str | None = None
     intent: str = "Unknown"
     execution_source: str = "Unknown"
     llm_provider: str = "None"
@@ -159,6 +160,7 @@ class AuraController:
         return AuraResponse(
             text=output.assistant_message,
             success=bool(raw.get("ok")),
+            spoken_text=output.spoken_text,
             intent=str(route.get("intent", "Unknown")),
             execution_source=str(route.get("execution_source", route.get("source", "Unknown"))),
             llm_provider=str(route.get("llm_provider") or "None"),

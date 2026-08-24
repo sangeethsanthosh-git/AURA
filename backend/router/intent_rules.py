@@ -68,7 +68,63 @@ def _weather_custom(text: str) -> tuple[float, str] | None:
     return None
 
 
+def _web_current_custom(text: str) -> tuple[float, str] | None:
+    current_terms = (
+        "latest", "recent", "today", "currently", "current", "this week", "this month",
+        "new release", "latest research", "recent papers", "happened today", "news",
+    )
+    specialized_terms = (
+        "weather", "temperature", "rain", "forecast", "locate", "coordinates", "map",
+        "stock", "bitcoin", "gold rate", "currency", "sensex", "nifty", "market",
+    )
+    local_terms = ("my document", "my documents", "local knowledge", "knowledge base", "from my files")
+    if any(term in text for term in current_terms) and not any(term in text for term in specialized_terms + local_terms):
+        return 0.93, "Detected current-information web terminology."
+    return None
+
+
 INTENT_RULES: tuple[IntentRule, ...] = (
+    IntentRule(
+        Intent.VISION,
+        "AURA EYES",
+        99,
+        keywords=(
+            "look at my screen", "what is on my screen", "what am i looking at",
+            "read what's on my screen", "read what is on my screen", "explain this error",
+            "look at this error", "what application am i looking at", "did chrome open",
+            "did the search work",
+        ),
+        patterns=(
+            re.compile(r"\b(look at|inspect|see|read|analyze)\b.*\b(screen|this error|what'?s shown)\b"),
+            re.compile(r"^what (is|am i) .*\b(screen|looking at)\b"),
+            re.compile(r"^did .+\b(open|work|appear|show up)\??$"),
+        ),
+        examples=("look at my screen", "what is on my screen", "explain this error", "read what's on my screen"),
+    ),
+    IntentRule(
+        Intent.COMPUTER_ACTIONS,
+        "AURA HANDS",
+        98,
+        keywords=(
+            "open chrome", "open youtube", "open chatgpt", "open github", "open downloads",
+            "open documents", "search google", "search youtube", "create folder",
+            "rename file", "copy file", "move file", "launch calculator", "open calculator",
+            "play spotify", "play music", "pause music", "stop music", "next track",
+            "previous track", "close chrome", "close vscode", "focus chrome", "click settings",
+            "type hello", "press enter", "scroll down", "confirm", "proceed", "cancel action", "abort",
+        ),
+        patterns=(
+            re.compile(r"^(open|launch|start)\s+.+"),
+            re.compile(r"^(play|pause|stop|next|previous|resume)(\s+.+)?$"),
+            re.compile(r"^(close|quit|focus|switch to)\s+.+"),
+            re.compile(r"^(click|double click|scroll|press|type|write)\s+.+"),
+            re.compile(r"^search(\s+(google|youtube|web))?\s+for\s+.+"),
+            re.compile(r"^create\s+(a\s+)?folder\b.+"),
+            re.compile(r"^(rename|copy|move)\s+(file\s+)?.+\s+to\s+.+"),
+            re.compile(r"^(yes|confirm|proceed|do it|go ahead|no|cancel|stop|abort)$"),
+        ),
+        examples=("open chrome", "open youtube", "search google for python tutorials", "create a folder called Research"),
+    ),
     IntentRule(
         Intent.MEMORY,
         "MemoryManager",
@@ -120,6 +176,22 @@ INTENT_RULES: tuple[IntentRule, ...] = (
         68,
         keywords=("stock price", "bitcoin", "gold rate", "currency", "sensex", "nifty", "current market"),
         examples=("current stock price", "bitcoin price", "gold rate today"),
+    ),
+    IntentRule(
+        Intent.WEB_INTELLIGENCE,
+        "Web Intelligence",
+        99,
+        keywords=(
+            "latest ai news", "latest news", "recent developments", "current python release",
+            "latest python release", "happened today", "latest research", "recent papers",
+            "current version", "new release", "currently", "today in",
+        ),
+        patterns=(
+            re.compile(r"^(?!.*\b(weather|temperature|rain|forecast|stock|bitcoin|gold rate|currency|sensex|nifty|market|map|coordinates)\b).*\b(latest|recent|current|today|this week|this month|new release|happened today)\b"),
+            re.compile(r"^(?!.*\b(weather|temperature|rain|forecast|stock|bitcoin|gold rate|currency|sensex|nifty|market|map|coordinates)\b).*\b(search|find)\b.*\b(recent|latest|papers|research|news)\b"),
+        ),
+        examples=("latest AI news", "what happened today in NVIDIA", "current Python release", "recent papers about RAG"),
+        custom=_web_current_custom,
     ),
     IntentRule(
         Intent.WEATHER,

@@ -7,7 +7,7 @@ from pathlib import Path
 from backend.config.config import Settings, settings
 from backend.voice.models import TranscriptionResult, VoiceState
 from backend.voice.recorder import AudioRecorder, RecordingError, SoundDeviceAudioRecorder, TempAudioFactory
-from backend.voice.stt_provider import FasterWhisperProvider, SpeechToTextProvider
+from backend.voice.stt_provider import FasterWhisperProvider, SpeechToTextProvider, SpeechToTextRouter
 
 
 class VoiceInputManager:
@@ -22,7 +22,7 @@ class VoiceInputManager:
     ) -> None:
         self.config = config
         self.recorder = recorder or SoundDeviceAudioRecorder()
-        self.stt_provider = stt_provider or FasterWhisperProvider(config=config)
+        self.stt_provider = stt_provider or SpeechToTextRouter(FasterWhisperProvider(config=config))
         self.temp_audio_factory = temp_audio_factory or TempAudioFactory()
         self.state = VoiceState.IDLE
         self.active_audio_path: Path | None = None

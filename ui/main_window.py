@@ -81,6 +81,10 @@ class MainWindow(QMainWindow):
         if self.request_thread is not None:
             return
         self.chat_page.add_user_message(message)
+        if self._is_screen_request(message):
+            self.chat_page.add_aura_message("AURA is looking at your screen...")
+        if self._is_web_request(message):
+            self.chat_page.add_aura_message("Searching the web...")
         self.chat_page.set_processing(True)
         self.status_indicator.set_processing()
 
@@ -158,12 +162,45 @@ class MainWindow(QMainWindow):
         if response.success:
             self.status_indicator.set_ready()
             self.chat_page.add_aura_message(response.text)
-            self._start_tts(response.text)
+            self._start_tts(response.spoken_text or response.text)
+            if self._maybe_confirm_action(response):
+                return
         else:
             self.status_indicator.set_error()
             self.chat_page.add_aura_message(response.text or "AURA encountered a problem while processing that request.")
         self.activity_page.refresh(self.controller.activities)
         self.refresh_memory()
+
+    def _maybe_confirm_action(self, response: AuraResponse) -> bool:
+        data = response.raw.get("data", {}) if isinstance(response.raw, dict) else {}
+        pending = data.get("pending_confirmation") if isinstance(data, dict) else None
+        if not pending:
+            return False
+        if isinstance(pending, dict):
+            action = str(pending.get("action_type", "action")).replace("_", " ")
+            target = str(pending.get("target", ""))
+        else:
+            task = data.get("task", {}) if isinstance(data, dict) else {}
+            steps = task.get("steps", []) if isinstance(task, dict) else []
+            current = int(task.get("current_step", 0) or 0) if isinstance(task, dict) else 0
+            step = steps[current] if current < len(steps) else {}
+            action_data = step.get("action", {}) if isinstance(step, dict) else {}
+            action = str(action_data.get("action_type", "task action")).replace("_", " ")
+            target = str(action_data.get("target", ""))
+        decision = QMessageBox.question(
+            self,
+            "Confirm AURA Action",
+            f"AURA wants to perform:\n\n{action}\n\nTarget:\n{target}\n\nProceed?",
+            QMessageBox.StandardButton.Cancel | QMessageBox.StandardButton.Yes,
+            QMessageBox.StandardButton.Cancel,
+        )
+        self.activity_page.refresh(self.controller.activities)
+        self.refresh_memory()
+        if decision == QMessageBox.StandardButton.Yes:
+            self.send_message("yes")
+        else:
+            self.send_message("cancel")
+        return True
 
     def _handle_voice_result(self, result) -> None:
         self.chat_page.set_voice_state("Mic")
@@ -228,6 +265,16 @@ class MainWindow(QMainWindow):
 
     def _set_tts_enabled(self, enabled: bool) -> None:
         self.controller.tts_enabled = enabled
+
+    @staticmethod
+    def _is_screen_request(message: str) -> bool:
+        lowered = message.lower()
+        return "screen" in lowered and any(term in lowered for term in ("look", "read", "analyze", "inspect", "what is"))
+
+    @staticmethod
+    def _is_web_request(message: str) -> bool:
+        lowered = message.lower()
+        return any(term in lowered for term in ("latest", "recent", "currently", "current version", "today", "news"))
 
     def _restore_geometry(self) -> None:
         settings = QSettings("AURA", "AURA ASUS")
