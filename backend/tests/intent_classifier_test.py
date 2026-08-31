@@ -26,6 +26,11 @@ def main() -> int:
         ("What is 587 × 932?", Intent.MATHEMATICS, "Local Math Engine"),
         ("If all cats are animals...", Intent.REASONING, "Groq"),
         ("Current stock price.", Intent.FINANCE, "Finance service is not installed."),
+        ("Read the Malayalam text.", Intent.VISION, "AURA EYES"),
+        ("What's written here?", Intent.VISION, "AURA EYES"),
+        ("Which application is open?", Intent.VISION, "AURA EYES"),
+        ("Where is the plus button?", Intent.VISION, "AURA EYES"),
+        ("What is my project?", Intent.GENERAL_KNOWLEDGE, "Wikipedia"),
     ]
 
     failures = 0

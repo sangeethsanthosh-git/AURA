@@ -25,8 +25,8 @@ class ProviderSelector:
         plans = {
             Intent.MEMORY: ProviderPlan("MemoryManager", "Session Memory", "Local Memory"),
             Intent.MATHEMATICS: ProviderPlan("Local Math Engine", "Python Math Engine", "Python"),
-            Intent.REASONING: ProviderPlan("Groq", "Groq API", settings.groq_model, ("Ollama",)),
-            Intent.PROGRAMMING: ProviderPlan("Groq", "Groq API", settings.groq_model, ("Ollama",)),
+            Intent.REASONING: ProviderPlan("NVIDIA", "NVIDIA NIM API", settings.nvidia_model, ("Groq", "Ollama")),
+            Intent.PROGRAMMING: ProviderPlan("NVIDIA", "NVIDIA NIM API", settings.nvidia_model, ("Groq", "Ollama")),
             Intent.TRANSLATION: ProviderPlan("Hugging Face", "Hugging Face Router", settings.hf_model, ("Ollama",)),
             Intent.GENERAL_KNOWLEDGE: ProviderPlan("Wikipedia", "Wikipedia API", "Ollama", ("Ollama",)),
             Intent.WEB_INTELLIGENCE: ProviderPlan("Web Intelligence", "Bounded Web Search", "Local/Ollama"),

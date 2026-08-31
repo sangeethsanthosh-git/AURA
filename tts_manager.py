@@ -13,7 +13,7 @@ class TTSManager:
         self.voice_studio = voice_studio or VoiceStudioManager()
         self.piper_path = self.voice_studio.piper_path
         self.voice_models = {
-            "en": Path(self.voice_studio.registry.get("piper-en-lessac").model_reference),  # type: ignore[union-attr]
+            "en": Path(self.voice_studio.registry.get("piper-en-ljspeech-high").model_reference),  # type: ignore[union-attr]
             "ml": Path(self.voice_studio.registry.get("piper-ml-meera").model_reference),  # type: ignore[union-attr]
         }
         self.output_dir = self.voice_studio.output_dir

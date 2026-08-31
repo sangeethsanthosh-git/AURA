@@ -15,6 +15,7 @@ class ProgrammingHandler:
 
     def handle(self, prompt: str) -> dict[str, Any]:
         return self.fallbacks.run([
+            ("NVIDIA", lambda: self.services.ask("nvidia", prompt)),
             ("Groq", lambda: self.services.ask("groq", prompt)),
             ("Ollama", lambda: self.services.ask("ollama", prompt)),
         ])

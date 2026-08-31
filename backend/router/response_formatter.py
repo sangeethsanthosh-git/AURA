@@ -70,6 +70,7 @@ class ResponseFormatter:
             "ollama": "Ollama",
             "groq": "Groq",
             "huggingface": "Hugging Face",
+            "nvidia": "NVIDIA",
         }
         if provider in names:
             return True, names[provider]
@@ -97,6 +98,7 @@ class ResponseFormatter:
             "ollama": "Local AI",
             "groq": "Groq API",
             "huggingface": "Hugging Face Router",
+            "nvidia": "NVIDIA NIM API",
             "wikipedia": "Wikipedia API",
             "web": "Web Intelligence",
             "weather": "Live Weather API",

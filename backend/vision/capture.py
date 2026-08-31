@@ -3,12 +3,12 @@
 from __future__ import annotations
 
 import logging
-import tempfile
 import time
 from pathlib import Path
 from uuid import uuid4
 
 from backend.vision.models import CaptureRegionType, ScreenCaptureResult
+from backend.vision.ocr.paths import OCR_TEMP_DIR, ensure_ocr_directories
 
 LOGGER = logging.getLogger(__name__)
 
@@ -17,7 +17,8 @@ class ScreenCaptureManager:
     """Captures the current screen only when explicitly requested."""
 
     def __init__(self, temp_dir: Path | None = None, max_dimension: int = 1600) -> None:
-        self.temp_dir = temp_dir or Path(tempfile.gettempdir()) / "aura_eyes"
+        ensure_ocr_directories()
+        self.temp_dir = temp_dir or OCR_TEMP_DIR
         self.max_dimension = max_dimension
 
     def capture_screen(

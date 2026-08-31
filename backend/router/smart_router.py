@@ -82,6 +82,10 @@ class SmartRouter:
     def ask(self, user_input: str) -> dict[str, Any]:
         started_at = time.perf_counter()
         try:
+            slash_response = self._handle_slash_command(user_input, started_at)
+            if slash_response is not None:
+                return slash_response
+
             classification = self._detect_memory_first(user_input)
             plan = self.provider_selector.select(classification.intent)
             handler = self.handlers.get(classification.intent, self._unknown)
@@ -101,6 +105,136 @@ class SmartRouter:
             plan = self.provider_selector.select(Intent.UNKNOWN)
             response = error_response("smart_router", "ask", "Sorry, something went wrong.", details=repr(exc))
             return self.formatter.format(response, classification, plan, started_at)
+
+    def _handle_slash_command(self, user_input: str, started_at: float) -> dict[str, Any] | None:
+        clean = user_input.strip()
+        if not clean.startswith("/"):
+            return None
+
+        name, _, argument = clean.partition(" ")
+        command = name.lower()
+        prompt = argument.strip()
+        command_map: dict[str, tuple[Intent, str, str, Callable[[str], dict[str, Any]]]] = {
+            "/chat": (
+                Intent.CONVERSATION,
+                "Ollama",
+                "Local Ollama chat requested by slash command.",
+                lambda text: self.service_manager.ask("ollama", text),
+            ),
+            "/ollama": (
+                Intent.CONVERSATION,
+                "Ollama",
+                "Local Ollama chat requested by slash command.",
+                lambda text: self._ask_ollama_slash(text),
+            ),
+            "/groq": (
+                Intent.REASONING,
+                "Groq",
+                "Groq provider requested by slash command.",
+                lambda text: self.service_manager.ask("groq", text),
+            ),
+            "/grok": (
+                Intent.REASONING,
+                "Groq",
+                "Groq provider requested by slash command.",
+                lambda text: self.service_manager.ask("groq", text),
+            ),
+            "/hug": (
+                Intent.TRANSLATION,
+                "Hugging Face",
+                "Hugging Face provider requested by slash command.",
+                lambda text: self.service_manager.ask("huggingface", text),
+            ),
+            "/hf": (
+                Intent.TRANSLATION,
+                "Hugging Face",
+                "Hugging Face provider requested by slash command.",
+                lambda text: self.service_manager.ask("huggingface", text),
+            ),
+            "/nvidia": (
+                Intent.REASONING,
+                "NVIDIA",
+                "NVIDIA NIM provider requested by slash command.",
+                lambda text: self.service_manager.ask("nvidia", text),
+            ),
+            "/nim": (
+                Intent.REASONING,
+                "NVIDIA",
+                "NVIDIA NIM provider requested by slash command.",
+                lambda text: self.service_manager.ask("nvidia", text),
+            ),
+            "/wiki": (
+                Intent.GENERAL_KNOWLEDGE,
+                "Wikipedia",
+                "Wikipedia provider requested by slash command.",
+                lambda text: self.service_manager.ask("wikipedia", text, action="summary"),
+            ),
+            "/web": (
+                Intent.WEB_INTELLIGENCE,
+                "Web Intelligence",
+                "Web intelligence requested by slash command.",
+                lambda text: self.web_manager.answer(text),
+            ),
+            "/weather": (
+                Intent.WEATHER,
+                "Open-Meteo",
+                "Weather provider requested by slash command.",
+                lambda text: self._weather().handle(IntentResult(Intent.WEATHER, 1.0, text or "Current weather", "Open-Meteo", "Weather slash command.")),
+            ),
+            "/map": (
+                Intent.MAPS,
+                "OpenStreetMap",
+                "Map provider requested by slash command.",
+                lambda text: self.service_manager.ask("maps", text or "current location"),
+            ),
+            "/screen": (
+                Intent.VISION,
+                "AURA EYES",
+                "AURA Eyes requested by slash command.",
+                lambda text: self.vision_manager.analyze_screen(self._screen_prompt(text)),
+            ),
+        }
+
+        route = command_map.get(command)
+        if route is None:
+            classification = IntentResult(Intent.UNKNOWN, 1.0, clean, "Ollama", "Unknown slash command.")
+            plan = self.provider_selector.select(Intent.UNKNOWN)
+            response = error_response("smart_router", "slash_command", f"Unknown command: {command}")
+            return self.formatter.format(response, classification, plan, started_at)
+
+        intent, provider, reason, handler = route
+        if not prompt and command not in {"/weather", "/screen"}:
+            classification = IntentResult(intent, 1.0, prompt, provider, reason)
+            plan = self.provider_selector.select(intent)
+            response = error_response("smart_router", "slash_command", f"Usage: {command} your question")
+            return self.formatter.format(response, classification, plan, started_at)
+
+        classification = IntentResult(intent, 1.0, prompt, provider, reason)
+        plan = self.provider_selector.select(intent)
+        response = handler(prompt)
+        response.setdefault("data", {})
+        if isinstance(response["data"], dict):
+            response["data"]["slash_command"] = command
+        return self.formatter.format(response, classification, plan, started_at, self._success_provider(response, plan.provider))
+
+    def _ask_ollama_slash(self, prompt: str) -> dict[str, Any]:
+        model, _, rest = prompt.partition(" ")
+        if ":" in model and rest.strip():
+            return self.service_manager.ask("ollama", rest.strip(), model=model)
+        return self.service_manager.ask("ollama", prompt)
+
+    @staticmethod
+    def _screen_prompt(argument: str) -> str:
+        lowered = argument.strip().lower()
+        if lowered in {"text", "read", "ocr"}:
+            return "Read the text on my screen."
+        if lowered in {"describe", "description"}:
+            return "What do you see on my screen?"
+        if lowered in {"app", "application", "window"}:
+            return "What application is currently open?"
+        if lowered == "verify":
+            return "Verify the current screen state."
+        return argument.strip() or "Look at my screen."
 
     def _detect_memory_first(self, user_input: str) -> IntentResult:
         memory_decision = self.memory_manager.analyze(user_input)
@@ -200,6 +334,7 @@ class SmartRouter:
             "groq": "Groq",
             "ollama": "Ollama",
             "huggingface": "Hugging Face",
+            "nvidia": "NVIDIA",
             "wikipedia": "Wikipedia",
             "web": "Web Intelligence",
             "weather": "Open-Meteo",

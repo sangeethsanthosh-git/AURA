@@ -15,6 +15,9 @@ if "AURA_APP_ROOT" in __import__("os").environ:
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from ui.controller.aura_controller import AuraController  # noqa: E402
+from backend.services.news_service import NewsService  # noqa: E402
+from backend.services.weather_service import WeatherService  # noqa: E402
+from backend.web.search import CompositeSearchProvider  # noqa: E402
 
 
 def _json_default(value: Any) -> Any:
@@ -46,10 +49,35 @@ def command(controller: AuraController, name: str, payload: dict[str, Any] | Non
         return controller.provider_status()
     if name == "voiceState":
         return {"state": str(controller.voice_state.value)}
+    if name == "voiceProfiles":
+        return controller.tts_manager.voice_studio.capability_status()
+    if name == "speakText":
+        text = str(payload.get("text", "")).strip()
+        language = str(payload.get("language", "en") or "en").strip()[:2] or "en"
+        profile_id = str(payload.get("voice", "") or "").strip() or None
+        if not text:
+            raise ValueError("speakText requires text.")
+        controller.tts_manager.voice_studio.speak(text, language, profile_id=profile_id)
+        return {"ok": True, "engine": "voice_studio", "language": language, "voice": profile_id}
     if name == "startVoice":
         return asdict(controller.start_voice_recording())
     if name == "stopVoice":
         return asdict(controller.stop_voice_recording())
+    if name == "weatherCurrent":
+        location = str(payload.get("location", "")).strip() or None
+        return WeatherService().current_weather(location)
+    if name == "newsHeadlines":
+        category = str(payload.get("category", "All") or "All")
+        query = str(payload.get("query", "") or "")
+        limit = int(payload.get("limit", 12) or 12)
+        return NewsService().headlines(category=category, query=query, limit=max(1, min(limit, 24)))
+    if name == "webSearch":
+        query = str(payload.get("query", "")).strip()
+        limit = int(payload.get("limit", 5) or 5)
+        if not query:
+            raise ValueError("webSearch requires a query.")
+        results = CompositeSearchProvider().search(query, max(1, min(limit, 10)))
+        return {"ok": True, "query": query, "results": [item.to_source(False) for item in results]}
     raise ValueError(f"Unsupported command: {name}")
 
 

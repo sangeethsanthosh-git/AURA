@@ -35,7 +35,8 @@ class HuggingFaceService:
         temperature: float = 0.7,
     ) -> dict[str, Any]:
         """Generate text from a configurable Hugging Face model."""
-        if not self.config.hf_api_key:
+        keys = self.config.hf_api_keys
+        if not keys:
             return error_response("huggingface", "text_generation", "HF_API_KEY is not configured.")
 
         selected_model = model or self.config.hf_model
@@ -48,24 +49,42 @@ class HuggingFaceService:
 
         LOGGER.info("Sending Hugging Face generation request with model=%s", selected_model)
 
-        try:
-            raw = self.http_client.post_json(
-                self.config.hf_api_base_url,
-                payload,
-                headers={"Authorization": f"Bearer {self.config.hf_api_key}"},
-            )
-            content = self._extract_text(raw)
-            return success_response(
-                "huggingface",
-                "text_generation",
-                {"content": content, "model": selected_model, "raw": raw},
-                message=content,
-            )
-        except (HttpClientError, ValueError) as exc:
-            LOGGER.warning("Hugging Face generation failed: %s", exc)
-            status = exc.status_code if isinstance(exc, HttpClientError) else None
-            details = exc.details if isinstance(exc, HttpClientError) else None
-            return error_response("huggingface", "text_generation", str(exc), status, details)
+        last_error: Exception | None = None
+        for index, key in enumerate(keys):
+            try:
+                raw = self.http_client.post_json(
+                    self.config.hf_api_base_url,
+                    payload,
+                    headers={"Authorization": f"Bearer {key}"},
+                )
+                content = self._extract_text(raw)
+                return success_response(
+                    "huggingface",
+                    "text_generation",
+                    {"content": content, "model": selected_model, "key_index": index, "raw": raw},
+                    message=content,
+                )
+            except (HttpClientError, ValueError) as exc:
+                last_error = exc
+                LOGGER.warning("Hugging Face generation failed with key index %s: %s", index, exc)
+                if not self._should_try_next_key(exc):
+                    break
+
+        status = last_error.status_code if isinstance(last_error, HttpClientError) else None
+        details = last_error.details if isinstance(last_error, HttpClientError) else None
+        message = self._limit_message(last_error) if status == 429 else str(last_error or "Hugging Face request failed.")
+        return error_response("huggingface", "text_generation", message, status, details)
+
+    @staticmethod
+    def _should_try_next_key(exc: Exception) -> bool:
+        return isinstance(exc, HttpClientError) and exc.status_code in {401, 403, 408, 429}
+
+    @staticmethod
+    def _limit_message(exc: Exception | None) -> str:
+        detail = getattr(exc, "details", None)
+        if detail:
+            return f"Hugging Face key token or rate limit reached. Tried configured fallback keys. Details: {detail}"
+        return "Hugging Face key token or rate limit reached. Tried configured fallback keys."
 
     @staticmethod
     def _extract_text(raw: Any) -> str:

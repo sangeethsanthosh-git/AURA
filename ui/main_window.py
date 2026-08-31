@@ -22,6 +22,7 @@ from ui.controller.aura_controller import AuraController, AuraResponse
 from ui.memory_page import MemoryPage
 from ui.settings_page import SettingsPage
 from ui.theme import APP_STYLE
+from ui.vision_page import VisionPage
 from ui.widgets.status_indicator import StatusIndicator
 from ui.workers.aura_worker import AuraRequestWorker, TTSWorker, VoiceTranscriptionWorker
 
@@ -49,9 +50,10 @@ class MainWindow(QMainWindow):
         self.chat_page = ChatPage()
         self.activity_page = ActivityPage()
         self.memory_page = MemoryPage()
+        self.vision_page = VisionPage()
         self.settings_page = SettingsPage()
 
-        for page in (self.chat_page, self.memory_page, self.activity_page, self.settings_page):
+        for page in (self.chat_page, self.memory_page, self.activity_page, self.vision_page, self.settings_page):
             self.stack.addWidget(page)
 
         self.nav_buttons: list[QPushButton] = []
@@ -72,9 +74,11 @@ class MainWindow(QMainWindow):
         self.chat_page.microphone_requested.connect(self.toggle_voice_input)
         self.memory_page.refresh_requested.connect(self.refresh_memory)
         self.memory_page.forget_requested.connect(self.forget_memory)
+        self.vision_page.refresh_button.clicked.connect(self.refresh_vision)
         self.settings_page.tts_changed.connect(self._set_tts_enabled)
         self._select_page(0)
         self.refresh_memory()
+        self.refresh_vision()
         self._restore_geometry()
 
     def send_message(self, message: str) -> None:
@@ -151,6 +155,9 @@ class MainWindow(QMainWindow):
             self.refresh_memory()
         else:
             QMessageBox.warning(self, "AURA Memory", response.text)
+
+    def refresh_vision(self) -> None:
+        self.vision_page.refresh_status(self.controller.vision_status())
 
     def closeEvent(self, event) -> None:
         settings = QSettings("AURA", "AURA ASUS")
@@ -245,7 +252,7 @@ class MainWindow(QMainWindow):
         layout = QVBoxLayout(side)
         layout.setContentsMargins(14, 18, 14, 18)
         layout.setSpacing(10)
-        for index, label in enumerate(("Chat", "Memory", "Activity", "Settings")):
+        for index, label in enumerate(("Chat", "Memory", "Activity", "Vision", "Settings")):
             button = QPushButton(label)
             button.setCheckable(True)
             button.clicked.connect(lambda _, i=index: self._select_page(i))
@@ -262,6 +269,8 @@ class MainWindow(QMainWindow):
             self.refresh_memory()
         if index == 2:
             self.activity_page.refresh(self.controller.activities)
+        if index == 3:
+            self.refresh_vision()
 
     def _set_tts_enabled(self, enabled: bool) -> None:
         self.controller.tts_enabled = enabled

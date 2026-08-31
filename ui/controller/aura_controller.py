@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from app import AssistantOutput, build_assistant_output
+from backend.config.config import settings
 from backend.memory.memory_models import MemoryStatus
 from backend.router.service_manager import ServiceManager
 from backend.router.smart_router import SmartRouter
@@ -144,12 +145,40 @@ class AuraController:
 
     def provider_status(self) -> dict[str, str]:
         """Return simple local status without network health checks."""
+        vision = self.vision_status()
         return {
             "Application": "Ready",
             "Ollama": "Configured through local service",
-            "Groq": "Configured by environment" ,
-            "Hugging Face": "Configured by environment",
+            "Groq": f"{len(settings.groq_api_keys)} key(s) configured",
+            "Hugging Face": f"{len(settings.hf_api_keys)} key(s) configured",
+            "NVIDIA": f"{len(settings.nvidia_api_keys)} key(s) configured",
+            "Eyes": str(vision.get("state", "UNAVAILABLE")),
+            "OCR": "Available" if vision.get("ocr_available") else "Unavailable",
+            "Vision": "Available" if vision.get("vision_available") else "Unavailable",
             "TTS": "Enabled" if self.tts_enabled else "Disabled",
+        }
+
+    def vision_status(self) -> dict[str, Any]:
+        """Return real AURA Eyes state without capturing the screen."""
+        status = self.router.vision_manager.capability_status()
+        if status.get("vision_available"):
+            state = "READY"
+        elif status.get("ocr_available"):
+            state = "READY"
+        else:
+            state = "UNAVAILABLE"
+        return {
+            "state": state,
+            "eyes_active": False,
+            "ocr_available": bool(status.get("ocr_available")),
+            "vision_available": bool(status.get("vision_available")),
+            "active_window_inspection": bool(status.get("active_window_inspection")),
+            "continuous_capture": bool(status.get("continuous_capture")),
+            "ocr_provider": status.get("ocr_provider"),
+            "vision_provider": status.get("vision_provider"),
+            "languages": status.get("ocr_status", {}).get("supported_languages", []),
+            "model_policy": status.get("ocr_status", {}).get("model_loading_policy", "UNLOAD_AFTER_TASK"),
+            "details": status,
         }
 
     @staticmethod

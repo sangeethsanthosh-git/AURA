@@ -16,7 +16,8 @@ OLLAMA_HOST = "http://localhost:11434"
 OLLAMA_THINK = False
 
 LANGUAGE_VOICE_MODELS = {
-    "en": BASE_DIR / "voices" / "en_US-lessac-medium.onnx",
+    "en": BASE_DIR / "voices" / "en_US-ljspeech-high.onnx",
+    "en_lessac": BASE_DIR / "voices" / "en_US-lessac-medium.onnx",
     "ml": BASE_DIR / "voices" / "ml_IN-meera-medium.onnx",
 }
 

@@ -71,10 +71,10 @@ class ActionExecutor:
         command = self.app_registry.launch_command(entry)
         if not command:
             return self._failure(action, f"{entry.name} is not available on this computer.", started)
-        if command.lower().endswith(".lnk"):
+        if command.lower().endswith(".lnk") or Path(command).exists():
             os.startfile(command)  # type: ignore[attr-defined]
         else:
-            subprocess.Popen([command], close_fds=True)
+            subprocess.Popen(command, shell=True, close_fds=True)
         return self._success(action, f"Opened {entry.name}.", "Windows application launcher", started, {"application": entry.key})
 
     def _open_url(self, action: ActionRequest, url: str, started: float) -> ActionResult:

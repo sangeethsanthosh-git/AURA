@@ -73,6 +73,22 @@ OCR libraries so downloads and temporary files stay inside the project:
    screenshots are deleted after processing unless debug capture is explicitly
    enabled.
 
+## Implemented V1 Scaffold
+
+- `backend.vision.ocr.base` defines the stable OCR provider/result interface.
+- `backend.vision.ocr.manager.OCRManager` performs language routing,
+  preprocessing, result normalization, confidence preservation, and bounding-box
+  forwarding.
+- `backend.vision.ocr.providers.primary.SuryaOCRProvider` is the lazy local
+  Surya adapter. It is optional at runtime and reports Malayalam OCR unavailable
+  honestly when Surya/model files are not installed.
+- `backend.vision.manager.VisionManager` now uses `OCRManager` for OCR tasks
+  instead of a Tesseract path.
+- `backend.vision.capture.ScreenCaptureManager` defaults temporary screenshots
+  to `data/ocr/temporary` and deletes them after processing.
+- `ui.vision_page.VisionPage` and `ui/qml/pages/VisionPage.qml` expose Eyes
+  status and on-demand screen actions without starting continuous capture.
+
 ## Installation Plan
 
 Do not install anything until the user approves the chosen OCR stack.

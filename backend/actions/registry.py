@@ -24,12 +24,25 @@ class ApplicationRegistry:
 
     def __init__(self, entries: tuple[ApplicationEntry, ...] | None = None) -> None:
         self.entries = entries or (
-            ApplicationEntry("chrome", "Google Chrome", ("chrome", "google chrome"), ("chrome", "chrome.exe")),
+            ApplicationEntry(
+                "chrome",
+                "Google Chrome",
+                ("chrome", "google chrome", "chrome browser", "browser"),
+                (
+                    "chrome",
+                    "chrome.exe",
+                    r"C:\Program Files\Google\Chrome\Application\chrome.exe",
+                    r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
+                ),
+            ),
             ApplicationEntry("edge", "Microsoft Edge", ("edge", "microsoft edge"), ("msedge", "msedge.exe")),
             ApplicationEntry("vscode", "Visual Studio Code", ("vs code", "vscode", "visual studio code", "code"), ("code", "code.cmd")),
             ApplicationEntry("calculator", "Calculator", ("calculator", "calc"), ("calc.exe",), True),
             ApplicationEntry("notepad", "Notepad", ("notepad",), ("notepad.exe",), True),
             ApplicationEntry("spotify", "Spotify", ("spotify",), ("spotify", "spotify.exe")),
+            ApplicationEntry("outlook", "Outlook", ("outlook", "mail", "email"), ("outlook", "outlook.exe")),
+            ApplicationEntry("word", "Microsoft Word", ("word", "ms word", "microsoft word"), ("winword", "winword.exe")),
+            ApplicationEntry("excel", "Microsoft Excel", ("excel", "microsoft excel"), ("excel", "excel.exe")),
         )
         self._aliases = {
             alias.lower(): entry
@@ -51,6 +64,8 @@ class ApplicationRegistry:
         if platform.system() != "Windows":
             return None
         for command in entry.windows_commands:
+            if ("\\" in command or "/" in command) and Path(command).exists():
+                return command
             found = which(command)
             if found:
                 return found
@@ -66,7 +81,15 @@ class ApplicationRegistry:
         text = re.sub(r"^(?:open|launch|start)\s+", "", text)
         text = re.sub(r"\b(?:the|app|application|desktop app|desktop application)\b", " ", text)
         text = re.sub(r"\s+", " ", text).strip(" .!?")
-        aliases = {"calc": "calculator", "vs code": "vscode", "visual studio code": "vscode", "chrome browser": "google chrome"}
+        aliases = {
+            "calc": "calculator",
+            "vs code": "vscode",
+            "visual studio code": "vscode",
+            "chrome browser": "google chrome",
+            "browser": "google chrome",
+            "email": "outlook",
+            "mail": "outlook",
+        }
         return aliases.get(text, text)
 
     def _discovered_entries(self) -> dict[str, ApplicationEntry]:

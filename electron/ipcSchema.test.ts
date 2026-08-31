@@ -4,6 +4,9 @@ import { validateAuraRequest } from "./ipcSchema.js";
 describe("IPC schema", () => {
   it("accepts known typed commands", () => {
     expect(validateAuraRequest({ command: "sendMessage", payload: { message: "hello" } }).command).toBe("sendMessage");
+    expect(validateAuraRequest({ command: "providerStatus" }).command).toBe("providerStatus");
+    expect(validateAuraRequest({ command: "weatherCurrent", payload: { location: "Kochi" } }).command).toBe("weatherCurrent");
+    expect(validateAuraRequest({ command: "newsHeadlines", payload: { category: "Technology", query: "AI", limit: 8 } }).command).toBe("newsHeadlines");
   });
 
   it("rejects arbitrary commands", () => {

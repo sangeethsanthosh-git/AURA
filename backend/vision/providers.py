@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import base64
 import json
+import os
 import re
-import subprocess
 import urllib.request
 from pathlib import Path
 
@@ -28,67 +28,14 @@ class VisionProvider:
         return self.analyze(image_path, ScreenAnalysisTask.UI_ELEMENT_DETECTION, prompt or "Identify visible UI elements.")
 
 
-class OptionalTesseractOcrProvider(VisionProvider):
-    provider_name = "Optional Tesseract OCR"
-
-    def __init__(self, languages: str = "eng+mal") -> None:
-        self.languages = languages
-
-    def is_available(self) -> bool:
-        try:
-            import pytesseract
-            from PIL import Image  # noqa: F401
-        except ImportError:
-            return False
-        try:
-            pytesseract.get_tesseract_version()
-        except Exception:
-            return False
-        return True
-
-    def analyze(self, image_path: Path, task: ScreenAnalysisTask, prompt: str) -> VisionResult:
-        return self.detect_text(image_path)
-
-    def detect_text(self, image_path: Path) -> VisionResult:
-        if not self.is_available():
-            return VisionResult(
-                False,
-                ScreenAnalysisTask.OCR,
-                "",
-                self.provider_name,
-                error="OCR is unavailable because pytesseract/Tesseract is not installed.",
-            )
-        try:
-            import pytesseract
-            from PIL import Image
-
-            text = pytesseract.image_to_string(Image.open(image_path), lang=self.languages).strip()
-            if not text:
-                return VisionResult(True, ScreenAnalysisTask.OCR, "No visible text detected.", self.provider_name, visible_text="")
-            return VisionResult(
-                True,
-                ScreenAnalysisTask.OCR,
-                self._safe_description(text),
-                self.provider_name,
-                visible_text=text,
-                confidence=None,
-            )
-        except Exception as exc:
-            return VisionResult(False, ScreenAnalysisTask.OCR, "", self.provider_name, error=f"OCR failed: {exc}")
-
-    @staticmethod
-    def _safe_description(text: str) -> str:
-        compact = " ".join(text.split())
-        return f"Visible text detected: {compact[:800]}"
-
-
 class LocalOllamaVisionProvider(VisionProvider):
     provider_name = "Local Ollama Vision"
-    VISION_MODEL_HINTS = ("llava", "bakllava", "moondream", "qwen2-vl", "qwen2.5vl", "minicpm-v", "vision")
+    VISION_MODEL_HINTS = ("llava", "bakllava", "moondream", "qwen2-vl", "qwen2.5vl", "minicpm-v", "gemma3", "vision")
 
-    def __init__(self, model: str | None = None, endpoint: str = "http://localhost:11434/api/generate") -> None:
-        self.model = model
+    def __init__(self, model: str | None = None, endpoint: str = "http://localhost:11434/api/generate", timeout_seconds: int = 25) -> None:
+        self.model = model or os.getenv("AURA_VISION_MODEL")
         self.endpoint = endpoint
+        self.timeout_seconds = timeout_seconds
         self._selected_model: str | None = None
         self._checked = False
 
@@ -116,7 +63,7 @@ class LocalOllamaVisionProvider(VisionProvider):
                 }
             ).encode("utf-8")
             request = urllib.request.Request(self.endpoint, data=payload, headers={"Content-Type": "application/json"})
-            with urllib.request.urlopen(request, timeout=60) as response:
+            with urllib.request.urlopen(request, timeout=self.timeout_seconds) as response:
                 data = json.loads(response.read().decode("utf-8"))
             text = str(data.get("response") or "").strip()
             if not text:
@@ -132,7 +79,14 @@ class LocalOllamaVisionProvider(VisionProvider):
                 confidence=self._extract_confidence(text),
             )
         except Exception as exc:
-            return VisionResult(False, task, "", self.provider_name, model, error=f"Vision analysis failed: {exc}")
+            return VisionResult(
+                False,
+                task,
+                "",
+                self.provider_name,
+                model,
+                error=f"Local vision model {model} did not return a screen analysis within {self.timeout_seconds}s: {exc}",
+            )
 
     def _select_model(self) -> str | None:
         if self._checked:
@@ -142,22 +96,37 @@ class LocalOllamaVisionProvider(VisionProvider):
             self._checked = True
             return self._selected_model
         try:
-            completed = subprocess.run(["ollama", "list"], capture_output=True, text=True, timeout=5, check=False)
-        except OSError:
+            with urllib.request.urlopen("http://localhost:11434/api/tags", timeout=2) as response:
+                data = json.loads(response.read().decode("utf-8"))
+            model_rows = data.get("models", []) if isinstance(data, dict) else []
+        except Exception:
             self._checked = True
             return None
-        if completed.returncode != 0:
-            self._checked = True
-            return None
-        for line in completed.stdout.splitlines()[1:]:
-            name = line.split()[0] if line.split() else ""
+        candidates = []
+        for item in model_rows:
+            name = str(item.get("name") or item.get("model") or "") if isinstance(item, dict) else ""
             lowered = name.lower()
             if any(hint in lowered for hint in self.VISION_MODEL_HINTS):
+                candidates.append(name)
+        for name in candidates:
+            if self._model_has_vision_capability(name):
                 self._selected_model = name
                 self._checked = True
                 return self._selected_model
         self._checked = True
         return None
+
+    @staticmethod
+    def _model_has_vision_capability(name: str) -> bool:
+        try:
+            payload = json.dumps({"model": name}).encode("utf-8")
+            request = urllib.request.Request("http://localhost:11434/api/show", data=payload, headers={"Content-Type": "application/json"})
+            with urllib.request.urlopen(request, timeout=2) as response:
+                data = json.loads(response.read().decode("utf-8"))
+        except Exception:
+            return False
+        capabilities = data.get("capabilities", []) if isinstance(data, dict) else []
+        return any(str(item).lower() == "vision" for item in capabilities)
 
     @staticmethod
     def _prompt_for(task: ScreenAnalysisTask, user_prompt: str) -> str:

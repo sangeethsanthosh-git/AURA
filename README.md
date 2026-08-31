@@ -1,71 +1,83 @@
-# 3D Image Ring
+# AURA
 
-A draggable 3D image carousel built with React, TypeScript, Framer Motion, and CSS 3D transforms.
+![AURA logo](public/assets/aura-app-icon.png)
 
-## Features
+**AURA is a lightweight, local-first desktop AI companion for Windows.** It combines a welcome-style chat workspace, local Ollama models, cloud-provider routing, voice input/output, reminders, calendar payments, news, media controls, and a movable companion.
 
-- Circular 3D image layout
-- Mouse and touch dragging
-- Inertia-based snapping
-- Responsive mobile scaling
-- Hover focus effect
-- Customizable sizing, perspective, spacing, and animation timing
+## Highlights
 
-## Installation
+- Local chat through Ollama with hardware-aware model recommendations.
+- Natural commands for apps, web search, YouTube, weather, reminders, and media.
+- Windows media-session support for YouTube, Spotify, browser playback, and compatible local players.
+- Live track title, artist, artwork banner, playback state, progress, and controls.
+- Piper TTS voice profiles with English and Malayalam support.
+- Custom assistant name, user profile, location, API keys, theme, avatar, and wallpaper.
+- Resizable and movable dashboard cards with saved layouts.
+- Recurring payments connected to calendar dates and reminder colors.
+- PyWebView desktop shell with a bundled one-click launcher.
 
-```bash
-npm install framer-motion clsx tailwind-merge
+## Architecture
+
+```mermaid
+flowchart LR
+  UI[React + TypeScript UI] --> Bridge[PyWebView bridge]
+  Bridge --> API[Local desktop API]
+  API --> Router[Smart router]
+  Router --> Ollama[Ollama local models]
+  Router --> Cloud[Optional cloud providers]
+  API --> Media[Windows Media Session]
+  API --> Voice[Piper TTS]
+  API --> Data[Local user settings]
 ```
 
-## Usage
+## Resource profile
 
-```tsx
-import { ThreeDImageRing } from "./src";
+| Component | Default behavior | Resource goal |
+| --- | --- | --- |
+| UI | Vite production bundle | Small, GPU-friendly surface |
+| Runtime | PyWebView + local HTTP bridge | No Electron runtime |
+| AI | Ollama on demand | User-selectable local model |
+| Voice | Piper only when requested | No continuous audio processing |
+| Media | Lightweight polling | No permanent streaming service |
 
-const images = [
-  "https://images.pexels.com/photos/1704120/pexels-photo-1704120.jpeg?auto=compress&cs=tinysrgb&w=1200",
-  "https://images.pexels.com/photos/1103970/pexels-photo-1103970.jpeg?auto=compress&cs=tinysrgb&w=1200",
-  "https://images.pexels.com/photos/2387873/pexels-photo-2387873.jpeg?auto=compress&cs=tinysrgb&w=1200",
-  "https://images.pexels.com/photos/912110/pexels-photo-912110.jpeg?auto=compress&cs=tinysrgb&w=1200",
-  "https://images.pexels.com/photos/325185/pexels-photo-325185.jpeg?auto=compress&cs=tinysrgb&w=1200",
-];
+## Install
 
-export function Example() {
-  return (
-    <div className="h-screen w-full bg-black">
-      <ThreeDImageRing images={images} />
-    </div>
-  );
-}
-```
+Download the latest Windows release from [Releases](https://github.com/sangeethsanthosh-git/AURA/releases). The first-run setup asks for your name, assistant name, location, optional API keys, voice, and a capable local model.
 
-## Props
-
-| Prop | Type | Default | Description |
-| --- | --- | --- | --- |
-| `images` | `string[]` | Default image set | Image URLs displayed in the ring |
-| `width` | `number` | `300` | Image panel width in pixels |
-| `perspective` | `number` | `2000` | CSS 3D perspective value |
-| `imageDistance` | `number` | `500` | Distance from the center of the ring |
-| `initialRotation` | `number` | `180` | Initial Y-axis rotation |
-| `animationDuration` | `number` | `1.5` | Entrance animation duration |
-| `staggerDelay` | `number` | `0.1` | Delay between image entrance animations |
-| `hoverOpacity` | `number` | `0.5` | Opacity applied to non-hovered images |
-| `containerClassName` | `string` | `undefined` | Extra classes for the outer container |
-| `ringClassName` | `string` | `undefined` | Extra classes for the ring element |
-| `imageClassName` | `string` | `undefined` | Extra classes for each image panel |
-| `backgroundColor` | `string` | `undefined` | Optional container background color |
-| `draggable` | `boolean` | `true` | Enables mouse and touch dragging |
-| `mobileBreakpoint` | `number` | `768` | Viewport width where mobile scaling starts |
-| `mobileScaleFactor` | `number` | `0.8` | Scale used below the mobile breakpoint |
-| `inertiaPower` | `number` | `0.8` | Framer Motion inertia power |
-| `inertiaTimeConstant` | `number` | `300` | Framer Motion inertia time constant |
-| `inertiaVelocityMultiplier` | `number` | `20` | Multiplier applied to drag velocity |
+Ollama is optional for cloud-only use. For local models, install it from [ollama.com/download](https://ollama.com/download), then AURA can install or pull a compatible model.
 
 ## Development
 
-This repository currently contains the reusable component source. A demo app and automated tests are good next improvements before publishing or showcasing it in a portfolio.
+```powershell
+npm install
+npm run desktop:dev
+```
+
+Run checks:
+
+```powershell
+npm run typecheck
+python -m py_compile desktop_launcher.py
+```
+
+Build the device test executable:
+
+```powershell
+npm run desktop:build
+```
+
+Build the generic global release:
+
+```powershell
+npm run desktop:build:global
+```
+
+Output folders are configured in `package.json` and excluded from Git. Release binaries are distributed through GitHub Releases.
+
+## Configuration and privacy
+
+API keys and user preferences are stored locally by the desktop runtime. `.env.example` documents development configuration; secrets should never be committed. Local model files and voice assets are excluded from Git because they are large and platform-specific.
 
 ## License
 
-MIT
+Copyright (c) 2026 Sangeeth Santhosh. AURA is released under the [MIT License](LICENSE).

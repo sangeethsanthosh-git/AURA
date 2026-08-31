@@ -26,6 +26,8 @@ node_modules/
 dist/
 dist-electron/
 build/
+build-global/
+build-webview/
 .vite/
 .next/
 out/

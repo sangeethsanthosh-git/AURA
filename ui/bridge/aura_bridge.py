@@ -167,6 +167,20 @@ class AuraBridge(QObject):
     def getVoiceStatus(self) -> str:
         return self._voice_state
 
+    @Slot(result="QVariant")
+    def getVisionStatus(self) -> dict[str, Any]:
+        if not self._controller:
+            return {
+                "state": "UNAVAILABLE",
+                "eyes_active": False,
+                "ocr_available": False,
+                "vision_available": False,
+                "active_window_inspection": False,
+                "continuous_capture": False,
+                "languages": [],
+            }
+        return self._controller.vision_status()
+
     @Slot()
     def startListening(self) -> None:
         if not self._controller:

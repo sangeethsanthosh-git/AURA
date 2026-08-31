@@ -23,10 +23,10 @@ class OllamaService:
             ModelRouter(),
         )
 
-    def chat(self, prompt: str) -> dict[str, Any]:
+    def chat(self, prompt: str, model: str | None = None) -> dict[str, Any]:
         """Ask the existing local Ollama conversation manager."""
         try:
-            content, selection = self.conversation_manager.ask(prompt)
+            content, selection = self.conversation_manager.ask(prompt, model_override=model)
             return success_response(
                 "ollama",
                 "chat",

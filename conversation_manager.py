@@ -38,12 +38,10 @@ class ConversationManager:
         self.session_context = session_context or SessionContext()
         self.state = ConversationState()
 
-    def ask(self, user_text: str) -> tuple[str, ModelSelection]:
+    def ask(self, user_text: str, model_override: str | None = None) -> tuple[str, ModelSelection]:
         language_reply = self.language_manager.handle_language_command(user_text)
         if language_reply is not None:
-            selection = self.model_router.select_model(
-                self.language_manager.current_language
-            )
+            selection = self._select_model(model_override)
             self.state.selected_model = selection.model
             self.add_message("user", user_text)
             self.add_message("assistant", language_reply)
@@ -57,7 +55,7 @@ class ConversationManager:
         elif detected_language == "mixed" and not self.language_manager.is_locked:
             self.language_manager.set_language("en", manually_locked=False)
 
-        selection = self.model_router.select_model(self.language_manager.current_language)
+        selection = self._select_model(model_override)
         self.state.selected_model = selection.model
         self.add_message("user", user_text)
 
@@ -78,6 +76,11 @@ class ConversationManager:
         self.session_context.add_turn("user", user_text)
         self.session_context.add_turn("assistant", assistant_text)
         return assistant_text, selection
+
+    def _select_model(self, model_override: str | None = None) -> ModelSelection:
+        if model_override:
+            return ModelSelection(language=self.language_manager.current_language, model=model_override)
+        return self.model_router.select_model(self.language_manager.current_language)
 
     def add_message(self, role: str, content: str) -> None:
         self.state.messages.append(Message(role=role, content=content))

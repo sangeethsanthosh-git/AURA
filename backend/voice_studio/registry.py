@@ -24,26 +24,40 @@ class VoiceRegistry:
         if language_code == "ml":
             return self._profiles["piper-ml-meera"]
         if language_code == "mixed":
-            return self._profiles["piper-ml-meera"] if self._profiles["piper-ml-meera"].availability else self._profiles["piper-en-lessac"]
-        return self._profiles["piper-en-lessac"]
+            return self._profiles["piper-ml-meera"] if self._profiles["piper-ml-meera"].availability else self.default_for_language("en")
+        return self._profiles["piper-en-ljspeech-high"] if self._profiles["piper-en-ljspeech-high"].availability else self._profiles["piper-en-lessac"]
 
     def _build_profiles(self) -> dict[str, VoiceProfile]:
         en_model = LANGUAGE_VOICE_MODELS.get("en", Path(""))
+        en_lessac_model = LANGUAGE_VOICE_MODELS.get("en_lessac", Path(""))
         ml_model = LANGUAGE_VOICE_MODELS.get("ml", Path(""))
         piper_ready = self.piper_path.exists()
         profiles = [
+            VoiceProfile(
+                "piper-en-ljspeech-high",
+                "Piper English Natural High",
+                VoiceEngine.PIPER,
+                VoiceLanguage.ENGLISH,
+                ("en",),
+                en_model,
+                piper_ready and en_model.exists(),
+                "Higher-quality local Piper English voice for the AI Assistant companion.",
+                speaker="ljspeech",
+                supported_styles=(SpeechStyle.NATURAL, SpeechStyle.FRIENDLY, SpeechStyle.CALM),
+                unavailable_reason=None if piper_ready and en_model.exists() else "Piper executable or high-quality English model missing.",
+            ),
             VoiceProfile(
                 "piper-en-lessac",
                 "Piper English Lessac",
                 VoiceEngine.PIPER,
                 VoiceLanguage.ENGLISH,
                 ("en",),
-                en_model,
-                piper_ready and en_model.exists(),
+                en_lessac_model,
+                piper_ready and en_lessac_model.exists(),
                 "Existing lightweight local Piper English voice.",
                 speaker="lessac",
                 supported_styles=(SpeechStyle.NATURAL, SpeechStyle.PROFESSIONAL, SpeechStyle.CALM),
-                unavailable_reason=None if piper_ready and en_model.exists() else "Piper executable or English model missing.",
+                unavailable_reason=None if piper_ready and en_lessac_model.exists() else "Piper executable or English Lessac model missing.",
             ),
             VoiceProfile(
                 "piper-ml-meera",

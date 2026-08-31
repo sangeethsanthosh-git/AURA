@@ -48,7 +48,7 @@ Item {
                 CapabilityPage { title: "Knowledge"; message: "Use chat for RAG and document questions while a dedicated knowledge view is added." }
                 MemoryPage {}
                 ActivityPage {}
-                CapabilityPage { title: "Vision"; message: "Vision is off by default. Ask AURA to read or describe your screen to use Eyes on demand." }
+                VisionPage {}
                 CapabilityPage { title: "Voice"; message: "Voice status is exposed. Push-to-talk controls will stay on demand." }
                 SettingsPage {}
             }

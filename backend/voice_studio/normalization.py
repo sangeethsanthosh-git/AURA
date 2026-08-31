@@ -29,7 +29,7 @@ class SpeechNormalizer:
         text = self.URL_RE.sub("a link", text)
         text = re.sub(r"`([^`]+)`", r"\1", text)
         text = re.sub(r"\*\*([^*]+)\*\*|\*([^*]+)\*", lambda m: m.group(1) or m.group(2), text)
-        text = text.replace("°C", " degrees Celsius")
+        text = text.replace("Â°C", " degrees Celsius").replace("°C", " degrees Celsius")
         for source, target in self.ABBREVIATIONS.items():
             text = re.sub(rf"\b{source}\b", target, text)
         route = self.detector.detect(text).route if language_code in {None, "mixed"} else None
@@ -39,13 +39,23 @@ class SpeechNormalizer:
 
     @staticmethod
     def _normalize_general(text: str) -> str:
-        text = re.sub(r"[_#<>|{}\[\]]", " ", text)
+        text = "".join(ch if SpeechNormalizer._is_speakable_char(ch) else " " for ch in text)
+        text = re.sub(r"[_#<>|{}\[\]•▪▫◦→←↑↓✓✔✕✖★☆$%^=+~]", " ", text)
         text = re.sub(r"\s+", " ", text)
         return text.strip()
 
     @staticmethod
     def _normalize_malayalam(text: str) -> str:
         # Preserve Malayalam Unicode and embedded English technical terms.
-        text = re.sub(r"[<>|{}\[\]]", " ", text)
+        text = "".join(ch if SpeechNormalizer._is_speakable_char(ch, preserve_malayalam=True) else " " for ch in text)
+        text = re.sub(r"[<>|{}\[\]•▪▫◦→←↑↓✓✔✕✖★☆$%^=+~]", " ", text)
         text = re.sub(r"\s+", " ", text)
         return text.strip()
+
+    @staticmethod
+    def _is_speakable_char(char: str, preserve_malayalam: bool = False) -> bool:
+        if char.isspace() or char.isalnum() or char in ".,!?;:'\"()/-":
+            return True
+        if preserve_malayalam and "\u0d00" <= char <= "\u0d7f":
+            return True
+        return not unicodedata.category(char).startswith(("S", "C"))

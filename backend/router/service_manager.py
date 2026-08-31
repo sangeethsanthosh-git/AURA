@@ -12,6 +12,7 @@ from backend.services.groq_service import GroqService
 from backend.services.huggingface_service import HuggingFaceService
 from backend.services.location_service import LocationService
 from backend.services.maps_service import MapsService
+from backend.services.nvidia_service import NvidiaService
 from backend.services.ollama_service import OllamaService
 from backend.services.weather_service import WeatherService
 from backend.services.wikipedia_service import WikipediaService
@@ -42,7 +43,7 @@ class ServiceManager:
         provider_key = provider.lower().strip()
         LOGGER.info("ServiceManager dispatch provider=%s", provider_key)
 
-        aliases = {"hf": "huggingface", "wiki": "wikipedia", "map": "maps"}
+        aliases = {"hf": "huggingface", "wiki": "wikipedia", "map": "maps", "nim": "nvidia"}
         provider_key = aliases.get(provider_key, provider_key)
         registration = self._providers.get(provider_key)
         if registration:
@@ -76,7 +77,7 @@ class ServiceManager:
         self.register_provider(
             "ollama",
             lambda: OllamaService(self._conversation_manager),
-            lambda service, prompt, kwargs: service.chat(prompt),
+            lambda service, prompt, kwargs: service.chat(prompt, model=kwargs.get("model")),
         )
         self.register_provider(
             "groq",
@@ -87,6 +88,11 @@ class ServiceManager:
             "huggingface",
             HuggingFaceService,
             lambda service, prompt, kwargs: service.text_generation(prompt, **kwargs),
+        )
+        self.register_provider(
+            "nvidia",
+            NvidiaService,
+            lambda service, prompt, kwargs: service.chat_completion(prompt, **kwargs),
         )
         self.register_provider(
             "wikipedia",

@@ -39,31 +39,40 @@ class GroqService:
         max_tokens: int = 1024,
     ) -> dict[str, Any]:
         """Return a non-streaming Groq chat response."""
-        if not self.config.groq_api_key:
+        keys = self.config.groq_api_keys
+        if not keys:
             return error_response("groq", "chat_completion", "GROQ_API_KEY is not configured.")
 
         payload = self._payload(prompt, model, system_prompt, temperature, max_tokens, stream=False)
         LOGGER.info("Sending Groq chat request with model=%s", payload["model"])
 
-        try:
-            raw = self.http_client.post_json(self.API_URL, payload, headers=self._headers())
-            content = raw["choices"][0]["message"]["content"].strip()
-            return success_response(
-                "groq",
-                "chat_completion",
-                {
-                    "content": content,
-                    "model": raw.get("model", payload["model"]),
-                    "usage": raw.get("usage", {}),
-                    "raw": raw,
-                },
-                message=content,
-            )
-        except (HttpClientError, KeyError, IndexError, TypeError) as exc:
-            LOGGER.warning("Groq chat completion failed: %s", exc)
-            status = exc.status_code if isinstance(exc, HttpClientError) else None
-            details = exc.details if isinstance(exc, HttpClientError) else None
-            return error_response("groq", "chat_completion", str(exc), status, details)
+        last_error: Exception | None = None
+        for index, key in enumerate(keys):
+            try:
+                raw = self.http_client.post_json(self.API_URL, payload, headers=self._headers(key))
+                content = raw["choices"][0]["message"]["content"].strip()
+                return success_response(
+                    "groq",
+                    "chat_completion",
+                    {
+                        "content": content,
+                        "model": raw.get("model", payload["model"]),
+                        "usage": raw.get("usage", {}),
+                        "key_index": index,
+                        "raw": raw,
+                    },
+                    message=content,
+                )
+            except (HttpClientError, KeyError, IndexError, TypeError) as exc:
+                last_error = exc
+                LOGGER.warning("Groq chat completion failed with key index %s: %s", index, exc)
+                if not self._should_try_next_key(exc):
+                    break
+
+        status = last_error.status_code if isinstance(last_error, HttpClientError) else None
+        details = last_error.details if isinstance(last_error, HttpClientError) else None
+        message = self._limit_message(last_error) if status == 429 else str(last_error or "Groq request failed.")
+        return error_response("groq", "chat_completion", message, status, details)
 
     def stream_chat_completion(
         self,
@@ -74,7 +83,7 @@ class GroqService:
         max_tokens: int = 1024,
     ) -> Iterable[dict[str, Any]]:
         """Yield structured chunks from Groq streaming chat completions."""
-        if not self.config.groq_api_key:
+        if not self.config.groq_api_keys:
             yield error_response("groq", "stream_chat_completion", "GROQ_API_KEY is not configured.")
             return
 
@@ -85,7 +94,7 @@ class GroqService:
             for line in self.http_client.stream_post_json_lines(
                 self.API_URL,
                 payload,
-                headers=self._headers(),
+                headers=self._headers(self.config.groq_api_keys[0]),
             ):
                 if not line.startswith("data: "):
                     continue
@@ -109,8 +118,20 @@ class GroqService:
             details = exc.details if isinstance(exc, HttpClientError) else None
             yield error_response("groq", "stream_chat_completion", str(exc), status, details)
 
-    def _headers(self) -> dict[str, str]:
-        return {"Authorization": f"Bearer {self.config.groq_api_key}"}
+    @staticmethod
+    def _headers(api_key: str) -> dict[str, str]:
+        return {"Authorization": f"Bearer {api_key}"}
+
+    @staticmethod
+    def _should_try_next_key(exc: Exception) -> bool:
+        return isinstance(exc, HttpClientError) and exc.status_code in {401, 403, 408, 429}
+
+    @staticmethod
+    def _limit_message(exc: Exception | None) -> str:
+        detail = getattr(exc, "details", None)
+        if detail:
+            return f"Groq key token or rate limit reached. Tried configured fallback keys. Details: {detail}"
+        return "Groq key token or rate limit reached. Tried configured fallback keys."
 
     def _payload(
         self,

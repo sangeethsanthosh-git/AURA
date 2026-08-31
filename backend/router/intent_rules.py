@@ -83,6 +83,18 @@ def _web_current_custom(text: str) -> tuple[float, str] | None:
     return None
 
 
+def _vision_custom(text: str) -> tuple[float, str] | None:
+    if re.search(r"\b(which|what)\s+(application|app|window)\s+(is\s+)?(open|active|foreground)\b", text):
+        return 0.96, "Detected active-window vision request."
+    if re.search(r"\b(read|what'?s written|what does this say)\b", text) and any(term in text for term in ("this", "here", "malayalam text", "visible text")):
+        return 0.94, "Detected on-demand OCR request."
+    if re.search(r"\b(where is|locate|find)\b.*\b(button|menu|field|plus|settings|save|cancel)\b", text):
+        return 0.93, "Detected UI element location request."
+    if re.search(r"\b(can you see|what do you see|what'?s on)\b", text):
+        return 0.90, "Detected visual screen understanding request."
+    return None
+
+
 INTENT_RULES: tuple[IntentRule, ...] = (
     IntentRule(
         Intent.VISION,
@@ -99,7 +111,8 @@ INTENT_RULES: tuple[IntentRule, ...] = (
             re.compile(r"^what (is|am i) .*\b(screen|looking at)\b"),
             re.compile(r"^did .+\b(open|work|appear|show up)\??$"),
         ),
-        examples=("look at my screen", "what is on my screen", "explain this error", "read what's on my screen"),
+        examples=(),
+        custom=_vision_custom,
     ),
     IntentRule(
         Intent.COMPUTER_ACTIONS,
@@ -117,7 +130,7 @@ INTENT_RULES: tuple[IntentRule, ...] = (
             re.compile(r"^(open|launch|start)\s+.+"),
             re.compile(r"^(play|pause|stop|next|previous|resume)(\s+.+)?$"),
             re.compile(r"^(close|quit|focus|switch to)\s+.+"),
-            re.compile(r"^(click|double click|scroll|press|type|write)\s+.+"),
+            re.compile(r"^(click|double click|scroll|press|type)\s+.+"),
             re.compile(r"^search(\s+(google|youtube|web))?\s+for\s+.+"),
             re.compile(r"^create\s+(a\s+)?folder\b.+"),
             re.compile(r"^(rename|copy|move)\s+(file\s+)?.+\s+to\s+.+"),
@@ -173,7 +186,7 @@ INTENT_RULES: tuple[IntentRule, ...] = (
     IntentRule(
         Intent.FINANCE,
         "Finance service is not installed.",
-        68,
+        100,
         keywords=("stock price", "bitcoin", "gold rate", "currency", "sensex", "nifty", "current market"),
         examples=("current stock price", "bitcoin price", "gold rate today"),
     ),

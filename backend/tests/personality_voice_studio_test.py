@@ -83,6 +83,13 @@ class PersonalityVoiceStudioTest(unittest.TestCase):
         self.assertNotIn("https://example.com", spoken)
         self.assertIn("R A G", spoken)
 
+    def test_speech_normalizer_removes_emoji_and_ui_symbols(self) -> None:
+        spoken = SpeechNormalizer().normalize("Rainy today 🌧️ ✅ -> 27°C #weather", "en")
+        self.assertNotIn("🌧", spoken)
+        self.assertNotIn("✅", spoken)
+        self.assertNotIn("#", spoken)
+        self.assertIn("27 degrees Celsius", spoken)
+
     def test_voice_registry_marks_candidates_unavailable(self) -> None:
         profiles = VoiceRegistry().profiles()
         engines = {profile.engine for profile in profiles}
@@ -93,7 +100,7 @@ class PersonalityVoiceStudioTest(unittest.TestCase):
 
     def test_voice_studio_selects_language_profile(self) -> None:
         studio = VoiceStudioManager()
-        self.assertEqual(studio.select_profile("en").id, "piper-en-lessac")
+        self.assertEqual(studio.select_profile("en").id, "piper-en-ljspeech-high")
         self.assertEqual(studio.select_profile("ml").id, "piper-ml-meera")
 
     def test_tts_manager_uses_voice_studio_wrapper(self) -> None:

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import tempfile
 import unittest
+import os
 from pathlib import Path
 from unittest.mock import Mock
 
@@ -85,6 +86,49 @@ class FakeWindowInspector:
 
 
 class VisionSystemTest(unittest.TestCase):
+    def test_ollama_vision_detection_uses_model_capabilities(self) -> None:
+        class FakeResponse:
+            def __init__(self, payload: bytes) -> None:
+                self.payload = payload
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_):
+                return False
+
+            def read(self) -> bytes:
+                return self.payload
+
+        with unittest.mock.patch(
+            "urllib.request.urlopen",
+            side_effect=[
+                FakeResponse(b'{"models":[{"name":"gemma3:4b"},{"name":"gemma3:1b"}]}'),
+                FakeResponse(b'{"capabilities":["completion","vision"]}'),
+            ],
+        ):
+            from backend.vision.providers import LocalOllamaVisionProvider
+
+            provider = LocalOllamaVisionProvider()
+
+            self.assertTrue(provider.is_available())
+            self.assertEqual(provider._selected_model, "gemma3:4b")
+
+    def test_ollama_vision_model_can_be_set_by_environment(self) -> None:
+        from backend.vision.providers import LocalOllamaVisionProvider
+
+        old = os.environ.get("AURA_VISION_MODEL")
+        os.environ["AURA_VISION_MODEL"] = "gemma3:4b"
+        try:
+            provider = LocalOllamaVisionProvider()
+            self.assertTrue(provider.is_available())
+            self.assertEqual(provider._selected_model, "gemma3:4b")
+        finally:
+            if old is None:
+                os.environ.pop("AURA_VISION_MODEL", None)
+            else:
+                os.environ["AURA_VISION_MODEL"] = old
+
     def test_capture_manager_returns_structured_result(self) -> None:
         with tempfile.TemporaryDirectory() as temp, unittest.mock.patch("PIL.ImageGrab.grab", return_value=FakeImage()):
             capture = ScreenCaptureManager(Path(temp)).capture_screen()

@@ -51,7 +51,7 @@ def print_header() -> None:
     print("|" + "Local multilingual AI companion".center(48) + "|")
     print("+" + "-" * 48 + "+")
     print("Type exit, quit, or bye to close.")
-    print("Commands: /chat, /weather Kochi, /wiki Alan Turing, /groq hello")
+    print("Commands: /chat, /weather Kochi, /wiki Alan Turing, /nvidia hello")
     print("Commands: /hf explain transformers, /map Kochi")
     print("Commands: /file C:\\path\\doc.pdf, /knowledge add C:\\path\\notes.md")
     print("Commands: /voice, /screen")
@@ -189,17 +189,37 @@ def normalize_cli_command(command: str) -> tuple[str, str] | None:
     if name == "/wiki":
         if not argument:
             return "Wikipedia", "Usage: /wiki Alan Turing"
-        return "Wikipedia", f"Who is {argument}?"
+        return "Wikipedia", f"/wiki {argument}"
 
-    if name == "/groq":
+    if name in {"/groq", "/grok"}:
         if not argument:
-            return "Groq", "Usage: /groq hello"
-        return "Groq", f"Write or explain programming help: {argument}"
+            return "Groq", f"Usage: {name} hello"
+        return "Groq", f"{name} {argument}"
+
+    if name in {"/nvidia", "/nim"}:
+        if not argument:
+            return "NVIDIA", f"Usage: {name} design an agent coding strategy"
+        return "NVIDIA", f"{name} {argument}"
 
     if name == "/hf":
         if not argument:
             return "Hugging Face", "Usage: /hf explain transformers"
-        return "Hugging Face", f"Translate or transform this text: {argument}"
+        return "Hugging Face", f"/hf {argument}"
+
+    if name == "/hug":
+        if not argument:
+            return "Hugging Face", "Usage: /hug explain transformers"
+        return "Hugging Face", f"/hug {argument}"
+
+    if name == "/ollama":
+        if not argument:
+            return "Ollama", "Usage: /ollama optional-model your message"
+        return "Ollama", f"/ollama {argument}"
+
+    if name == "/web":
+        if not argument:
+            return "Web", "Usage: /web current topic"
+        return "Web", f"/web {argument}"
 
     if name == "/map":
         if not argument:

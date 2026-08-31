@@ -13,7 +13,8 @@ from backend.context.temporary import TemporaryContextStore
 from backend.utils.responses import error_response, success_response
 from backend.vision.capture import ScreenCaptureManager
 from backend.vision.models import CaptureRegionType, ScreenAnalysisTask, ScreenCaptureResult, VisionResult, VisualContext
-from backend.vision.providers import LocalOllamaVisionProvider, OptionalTesseractOcrProvider, VisionProvider
+from backend.vision.ocr.manager import OCRManager
+from backend.vision.providers import LocalOllamaVisionProvider, VisionProvider
 from backend.vision.window_inspector import ActiveWindowInspector
 
 LOGGER = logging.getLogger(__name__)
@@ -25,13 +26,15 @@ class VisionManager:
         capture_manager: ScreenCaptureManager | None = None,
         provider: VisionProvider | None = None,
         ocr_provider: VisionProvider | None = None,
+        ocr_manager: OCRManager | None = None,
         temporary_context: TemporaryContextStore | None = None,
         visual_context_ttl_seconds: int = 45,
         window_inspector: ActiveWindowInspector | None = None,
     ) -> None:
         self.capture_manager = capture_manager or ScreenCaptureManager()
         self.provider = provider or LocalOllamaVisionProvider()
-        self.ocr_provider = ocr_provider or OptionalTesseractOcrProvider()
+        self.ocr_manager = ocr_manager or OCRManager()
+        self.ocr_provider = ocr_provider
         self.temporary_context = temporary_context
         self.visual_context_ttl_seconds = visual_context_ttl_seconds
         self.capture_count = 0
@@ -105,8 +108,9 @@ class VisionManager:
             "screen_capture": "available when Pillow/ImageGrab can access the desktop",
             "vision_provider": self.provider.provider_name,
             "vision_available": self.provider.is_available(),
-            "ocr_provider": self.ocr_provider.provider_name,
-            "ocr_available": self.ocr_provider.is_available(),
+            "ocr_provider": self.ocr_provider.provider_name if self.ocr_provider else self.ocr_manager.primary_provider.provider_name,
+            "ocr_available": self.ocr_provider.is_available() if self.ocr_provider else self.ocr_manager.is_available(),
+            "ocr_status": self.ocr_manager.status(),
             "continuous_capture": False,
             "capture_count": self.capture_count,
             "vision_inference_count": self.inference_count,
@@ -180,7 +184,7 @@ class VisionManager:
 
     def _analyze_capture(self, image_path, selected_task: ScreenAnalysisTask, prompt: str) -> VisionResult:
         if selected_task in {ScreenAnalysisTask.OCR, ScreenAnalysisTask.TEXT_RECOGNITION}:
-            ocr_result = self.ocr_provider.detect_text(image_path)
+            ocr_result = self.ocr_provider.detect_text(image_path) if self.ocr_provider else self.ocr_manager.recognize_screen(image_path, prompt)
             if ocr_result.success or not self.provider.is_available():
                 return ocr_result
         if selected_task in {ScreenAnalysisTask.UI_ELEMENT_DETECTION, ScreenAnalysisTask.UI_ELEMENT_DISCOVERY}:
