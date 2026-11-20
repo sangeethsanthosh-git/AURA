@@ -1,0 +1,612 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>AURA Virtual Hand & Keyboard Overlay</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      user-select: none;
+      -webkit-user-drag: none;
+    }
+
+    html, body {
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+      background: transparent !important;
+      pointer-events: none !important;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+
+    /* =========================================================================
+       1. VIRTUAL ASSISTANT HAND OVERLAY (Kawaii Pixel Cat Paw)
+       ========================================================================= */
+
+    #virtual-hand-wrapper {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 48px;
+      height: 48px;
+      pointer-events: none;
+      opacity: 0;
+      transform: translate3d(-100px, -100px, 0);
+      will-change: transform, opacity;
+      transition: opacity 0.18s ease-out;
+      z-index: 2147483647;
+    }
+
+    #virtual-hand-wrapper.visible {
+      opacity: 1;
+    }
+
+    #virtual-hand-img {
+      width: 100%;
+      height: 100%;
+      display: block;
+      image-rendering: pixelated;
+      image-rendering: -moz-crisp-edges;
+      image-rendering: crisp-edges;
+      filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.35));
+      transform-origin: 0 0;
+      transition: transform 0.08s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+
+    /* Click compression animation */
+    #virtual-hand-wrapper.clicking #virtual-hand-img {
+      transform: scale(0.85);
+    }
+
+    /* Typing tap vibration animation */
+    #virtual-hand-wrapper.typing #virtual-hand-img {
+      animation: hand-typing-tap 0.12s ease-in-out infinite alternate;
+    }
+
+    @keyframes hand-typing-tap {
+      0% { transform: translateY(0) scale(1); }
+      100% { transform: translateY(-5px) scale(0.96); }
+    }
+
+    /* Visual click ripple ring expanding from hotspot */
+    .click-ripple {
+      position: absolute;
+      border-radius: 50%;
+      border: 2px solid rgba(235, 94, 40, 0.85);
+      background: rgba(235, 94, 40, 0.15);
+      pointer-events: none;
+      transform: translate(-50%, -50%) scale(0.2);
+      opacity: 1;
+      animation: ripple-expand 0.4s cubic-bezier(0.1, 0.8, 0.3, 1) forwards;
+      z-index: 2147483645;
+    }
+
+    @keyframes ripple-expand {
+      0% {
+        transform: translate(-50%, -50%) scale(0.2);
+        opacity: 0.9;
+      }
+      100% {
+        transform: translate(-50%, -50%) scale(2.4);
+        opacity: 0;
+      }
+    }
+
+    /* =========================================================================
+       2. KAWAII VIRTUAL KEYBOARD OVERLAY (Zero-Mistake Input HUD)
+       ========================================================================= */
+
+    #virtual-keyboard-wrapper {
+      position: absolute;
+      bottom: 32px;
+      left: 50%;
+      transform: translateX(-50%) translateY(30px);
+      width: 480px;
+      background: rgba(18, 18, 26, 0.94);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid rgba(235, 94, 40, 0.45);
+      border-radius: 20px;
+      padding: 16px 18px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.65), 0 0 30px rgba(235, 94, 40, 0.25);
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.24s cubic-bezier(0.16, 1, 0.3, 1), transform 0.24s cubic-bezier(0.16, 1, 0.3, 1);
+      z-index: 2147483640;
+    }
+
+    #virtual-keyboard-wrapper.visible {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+
+    .vk-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+    }
+
+    .vk-title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .vk-icon {
+      font-size: 16px;
+    }
+
+    .vk-title-text {
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.3px;
+      color: #f8fafc;
+    }
+
+    .vk-badge {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 11px;
+      font-weight: 600;
+      color: #eb5e28;
+      background: rgba(235, 94, 40, 0.15);
+      border: 1px solid rgba(235, 94, 40, 0.3);
+      border-radius: 12px;
+      padding: 3px 10px;
+    }
+
+    .vk-badge-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: #eb5e28;
+      box-shadow: 0 0 6px #eb5e28;
+      animation: vk-dot-pulse 1s infinite alternate;
+    }
+
+    @keyframes vk-dot-pulse {
+      0% { opacity: 0.4; transform: scale(0.8); }
+      100% { opacity: 1; transform: scale(1.2); }
+    }
+
+    /* Typed text preview display bar */
+    .vk-display {
+      display: flex;
+      align-items: center;
+      background: rgba(10, 10, 16, 0.75);
+      border: 1px solid rgba(235, 94, 40, 0.3);
+      border-radius: 10px;
+      padding: 8px 12px;
+      margin-bottom: 12px;
+      font-family: 'Consolas', 'Courier New', monospace;
+      font-size: 14px;
+      color: #ffedd5;
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+      box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.4);
+    }
+
+    .vk-prompt {
+      color: #eb5e28;
+      font-weight: bold;
+      margin-right: 8px;
+    }
+
+    .vk-text {
+      flex: 1;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+    }
+
+    .vk-cursor {
+      color: #eb5e28;
+      font-weight: bold;
+      animation: vk-cursor-blink 0.8s infinite;
+      margin-left: 2px;
+    }
+
+    @keyframes vk-cursor-blink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0; }
+    }
+
+    /* Key layout */
+    .vk-keys-container {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .vk-row {
+      display: flex;
+      justify-content: center;
+      gap: 6px;
+    }
+
+    .vk-key {
+      flex: 1;
+      height: 32px;
+      min-width: 32px;
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 7px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, monospace;
+      font-size: 12px;
+      font-weight: 600;
+      color: #e2e8f0;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+      transition: all 0.08s cubic-bezier(0.2, 0.8, 0.2, 1);
+    }
+
+    .vk-key-wide {
+      flex: 1.4;
+    }
+
+    .vk-key-space {
+      flex: 3.5;
+      font-size: 11px;
+      letter-spacing: 1px;
+    }
+
+    .vk-key-enter {
+      flex: 1.8;
+      font-size: 11px;
+      font-weight: 700;
+    }
+
+    /* Active highlighted key when AURA taps it */
+    .vk-key.key-active {
+      background: linear-gradient(135deg, #eb5e28 0%, #f97316 100%) !important;
+      color: #ffffff !important;
+      border-color: #ffedd5 !important;
+      transform: translateY(2px) scale(0.94);
+      box-shadow: 0 0 16px rgba(235, 94, 40, 0.95), inset 0 1px 2px rgba(255, 255, 255, 0.4);
+    }
+  </style>
+</head>
+<body>
+  <!-- AURA Virtual Assistant Hand -->
+  <div id="virtual-hand-wrapper">
+    <img id="virtual-hand-img" src="" alt="AURA Virtual Hand" />
+  </div>
+
+  <!-- AURA Virtual Keyboard HUD -->
+  <div id="virtual-keyboard-wrapper">
+    <div class="vk-header">
+      <div class="vk-title">
+        <span class="vk-icon">🐾</span>
+        <span class="vk-title-text">AURA Virtual Keyboard</span>
+      </div>
+      <div class="vk-badge">
+        <span class="vk-badge-dot"></span>
+        <span>Precision Typing</span>
+      </div>
+    </div>
+    
+    <div class="vk-display">
+      <span class="vk-prompt">&gt;</span>
+      <span id="vk-typed-text" class="vk-text"></span>
+      <span class="vk-cursor">|</span>
+    </div>
+
+    <div class="vk-keys-container">
+      <div class="vk-row">
+        <div class="vk-key" data-key="1">1</div>
+        <div class="vk-key" data-key="2">2</div>
+        <div class="vk-key" data-key="3">3</div>
+        <div class="vk-key" data-key="4">4</div>
+        <div class="vk-key" data-key="5">5</div>
+        <div class="vk-key" data-key="6">6</div>
+        <div class="vk-key" data-key="7">7</div>
+        <div class="vk-key" data-key="8">8</div>
+        <div class="vk-key" data-key="9">9</div>
+        <div class="vk-key" data-key="0">0</div>
+      </div>
+      <div class="vk-row">
+        <div class="vk-key" data-key="q">Q</div>
+        <div class="vk-key" data-key="w">W</div>
+        <div class="vk-key" data-key="e">E</div>
+        <div class="vk-key" data-key="r">R</div>
+        <div class="vk-key" data-key="t">T</div>
+        <div class="vk-key" data-key="y">Y</div>
+        <div class="vk-key" data-key="u">U</div>
+        <div class="vk-key" data-key="i">I</div>
+        <div class="vk-key" data-key="o">O</div>
+        <div class="vk-key" data-key="p">P</div>
+      </div>
+      <div class="vk-row">
+        <div class="vk-key" data-key="a">A</div>
+        <div class="vk-key" data-key="s">S</div>
+        <div class="vk-key" data-key="d">D</div>
+        <div class="vk-key" data-key="f">F</div>
+        <div class="vk-key" data-key="g">G</div>
+        <div class="vk-key" data-key="h">H</div>
+        <div class="vk-key" data-key="j">J</div>
+        <div class="vk-key" data-key="k">K</div>
+        <div class="vk-key" data-key="l">L</div>
+      </div>
+      <div class="vk-row">
+        <div class="vk-key" data-key="z">Z</div>
+        <div class="vk-key" data-key="x">X</div>
+        <div class="vk-key" data-key="c">C</div>
+        <div class="vk-key" data-key="v">V</div>
+        <div class="vk-key" data-key="b">B</div>
+        <div class="vk-key" data-key="n">N</div>
+        <div class="vk-key" data-key="m">M</div>
+        <div class="vk-key vk-key-wide" data-key="backspace">⌫</div>
+      </div>
+      <div class="vk-row">
+        <div class="vk-key vk-key-space" data-key=" ">SPACE</div>
+        <div class="vk-key vk-key-enter" data-key="enter">↵ ENTER</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const wrapper = document.getElementById('virtual-hand-wrapper');
+    const handImg = document.getElementById('virtual-hand-img');
+    const vkWrapper = document.getElementById('virtual-keyboard-wrapper');
+    const vkTypedText = document.getElementById('vk-typed-text');
+
+    let activeTheme = null;
+    let currentX = 100;
+    let currentY = 100;
+    let animRaf = null;
+
+    let hotspotX = 8;
+    let hotspotY = 3;
+    let handSize = 44;
+
+    let vkHideTimeout = null;
+    let vkTypingInterval = null;
+
+    // Fetch active theme configuration
+    async function loadActiveTheme() {
+      try {
+        const res = await fetch('http://127.0.0.1:8000/api/virtual-hand/themes/active');
+        if (res.ok) {
+          activeTheme = await res.json();
+          applyThemeSettings(activeTheme);
+        }
+      } catch (err) {
+        console.debug('Failed to load active theme:', err);
+      }
+    }
+
+    function applyThemeSettings(theme) {
+      if (!theme) return;
+      const settings = theme.settings || {};
+      handSize = settings.size || 44;
+      wrapper.style.width = handSize + 'px';
+      wrapper.style.height = handSize + 'px';
+
+      const hspot = settings.hotspot || [8, 3];
+      hotspotX = hspot[0] || 0;
+      hotspotY = hspot[1] || 0;
+
+      setVariantImage('normal');
+    }
+
+    function setVariantImage(state) {
+      if (!activeTheme || !activeTheme.variants) return;
+      const variant = activeTheme.variants[state] || activeTheme.variants['normal'];
+      if (variant && variant.data_url) {
+        handImg.src = variant.data_url;
+        if (variant.hotspot) {
+          hotspotX = variant.hotspot[0];
+          hotspotY = variant.hotspot[1];
+        }
+      }
+    }
+
+    function spawnClickRipple(x, y) {
+      const ripple = document.createElement('div');
+      ripple.className = 'click-ripple';
+      ripple.style.left = x + 'px';
+      ripple.style.top = y + 'px';
+      ripple.style.width = Math.max(30, handSize * 0.8) + 'px';
+      ripple.style.height = Math.max(30, handSize * 0.8) + 'px';
+      document.body.appendChild(ripple);
+      setTimeout(() => ripple.remove(), 450);
+    }
+
+    function cubicEaseInOut(t) {
+      return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+    }
+
+    function animateGlide(startX, startY, targetX, targetY, durationMs, onComplete) {
+      if (animRaf) cancelAnimationFrame(animRaf);
+      const startTime = performance.now();
+
+      function step(now) {
+        const elapsed = now - startTime;
+        const progress = Math.min(1, elapsed / durationMs);
+        const eased = cubicEaseInOut(progress);
+
+        const curX = startX + (targetX - startX) * eased;
+        const curY = startY + (targetY - startY) * eased;
+
+        currentX = curX;
+        currentY = curY;
+
+        const renderX = Math.round(curX - hotspotX);
+        const renderY = Math.round(curY - hotspotY);
+        wrapper.style.transform = `translate3d(${renderX}px, ${renderY}px, 0)`;
+
+        if (progress < 1) {
+          animRaf = requestAnimationFrame(step);
+        } else {
+          animRaf = null;
+          if (onComplete) onComplete();
+        }
+      }
+
+      animRaf = requestAnimationFrame(step);
+    }
+
+    // =========================================================================
+    // VIRTUAL KEYBOARD TYPING SIMULATION & VISUAL FEEDBACK
+    // =========================================================================
+
+    function highlightKey(char) {
+      const keyStr = (char || '').toLowerCase();
+      const keyEl = document.querySelector(`.vk-key[data-key="${CSS.escape(keyStr)}"]`);
+      if (keyEl) {
+        keyEl.classList.add('key-active');
+        setTimeout(() => keyEl.classList.remove('key-active'), 80);
+      }
+    }
+
+    function animateVirtualKeyboardTyping(fullText) {
+      if (!fullText) return;
+      if (vkHideTimeout) clearTimeout(vkHideTimeout);
+      if (vkTypingInterval) clearInterval(vkTypingInterval);
+
+      // Reveal Virtual Keyboard HUD
+      vkWrapper.classList.add('visible');
+      if (window.electronOverlay) window.electronOverlay.showOverlay();
+
+      vkTypedText.textContent = '';
+      let charIdx = 0;
+      const chars = Array.from(fullText);
+
+      // Type cadence ~ 45ms per character
+      vkTypingInterval = setInterval(() => {
+        if (charIdx < chars.length) {
+          const c = chars[charIdx];
+          highlightKey(c);
+          vkTypedText.textContent += c;
+          charIdx++;
+        } else {
+          clearInterval(vkTypingInterval);
+          vkTypingInterval = null;
+
+          // Brief pause with completed text, then fade out
+          vkHideTimeout = setTimeout(() => {
+            vkWrapper.classList.remove('visible');
+          }, 900);
+        }
+      }, 45);
+    }
+
+    // =========================================================================
+    // FASTAPI WEBSOCKET STREAM CONNECTION
+    // =========================================================================
+
+    function initWebSocket() {
+      const wsUrl = 'ws://127.0.0.1:8000/api/desktop/virtual-hand-stream';
+      let ws = null;
+
+      try {
+        ws = new WebSocket(wsUrl);
+      } catch (e) {
+        setTimeout(initWebSocket, 2000);
+        return;
+      }
+
+      ws.onopen = () => {
+        console.log('[VirtualHand Overlay] Connected to event stream.');
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          const msg = JSON.parse(event.data);
+          handleEvent(msg);
+        } catch (e) {
+          console.debug('Error parsing message:', e);
+        }
+      };
+
+      ws.onclose = () => {
+        setTimeout(initWebSocket, 1500);
+      };
+
+      ws.onerror = () => {
+        ws.close();
+      };
+    }
+
+    function handleEvent(msg) {
+      const type = msg.type;
+
+      if (type === 'hand_show') {
+        if (msg.theme) {
+          activeTheme = msg.theme;
+          applyThemeSettings(activeTheme);
+        }
+        currentX = msg.x || currentX;
+        currentY = msg.y || currentY;
+        const renderX = Math.round(currentX - hotspotX);
+        const renderY = Math.round(currentY - hotspotY);
+        wrapper.style.transform = `translate3d(${renderX}px, ${renderY}px, 0)`;
+        wrapper.classList.add('visible');
+        if (window.electronOverlay) window.electronOverlay.showOverlay();
+        setVariantImage(msg.state || 'normal');
+      }
+      else if (type === 'hand_move') {
+        const fromX = msg.from_x !== undefined ? msg.from_x : currentX;
+        const fromY = msg.from_y !== undefined ? msg.from_y : currentY;
+        const toX = msg.to_x;
+        const toY = msg.to_y;
+        const dur = Math.max(100, (msg.duration || 0.45) * 1000);
+
+        wrapper.classList.add('visible');
+        if (window.electronOverlay) window.electronOverlay.showOverlay();
+
+        if (msg.state) setVariantImage(msg.state);
+        animateGlide(fromX, fromY, toX, toY, dur);
+      }
+      else if (type === 'hand_click') {
+        const clickX = msg.x !== undefined ? msg.x : currentX;
+        const clickY = msg.y !== undefined ? msg.y : currentY;
+        spawnClickRipple(clickX, clickY);
+
+        wrapper.classList.add('clicking');
+        setTimeout(() => wrapper.classList.remove('clicking'), 120);
+      }
+      else if (type === 'hand_type') {
+        setVariantImage('typing');
+        wrapper.classList.add('typing');
+        
+        // Trigger Virtual Keyboard animation with real-time key glows
+        const text = msg.text || '';
+        animateVirtualKeyboardTyping(text);
+
+        const duration = Math.max(400, text.length * 50);
+        setTimeout(() => wrapper.classList.remove('typing'), duration);
+      }
+      else if (type === 'hand_state') {
+        setVariantImage(msg.state || 'normal');
+      }
+      else if (type === 'hand_hide') {
+        wrapper.classList.remove('visible');
+        vkWrapper.classList.remove('visible');
+        if (vkTypingInterval) {
+          clearInterval(vkTypingInterval);
+          vkTypingInterval = null;
+        }
+        setTimeout(() => {
+          if (!wrapper.classList.contains('visible') && !vkWrapper.classList.contains('visible') && window.electronOverlay) {
+            window.electronOverlay.hideOverlay();
+          }
+        }, 250);
+      }
+      else if (type === 'theme_changed') {
+        loadActiveTheme();
+      }
+    }
+
+    // Initialize
+    loadActiveTheme();
+    initWebSocket();
+  </script>
+</body>
+</html>

@@ -1,0 +1,50 @@
+# =======================================================
+# AURA AI Desktop Assistant - Git Ignore Rules
+# =======================================================
+
+# Python Environments & Cache
+.venv/
+venv/
+env/
+ENV/
+*.venv
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyd
+.pytest_cache/
+.coverage
+htmlcov/
+*.egg-info/
+
+# Node.js & Electron Packaging
+node_modules/
+frontend/node_modules/
+dist-electron/
+frontend/dist-electron/
+release/
+frontend/dist/
+.vite/
+*.tsbuildinfo
+
+# Local Databases & Logs
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+*.log
+debug.log
+query
+*.tmp
+
+# Sensitive User Configurations & OAuth Tokens
+.env
+!.env.example
+client_secrets.json
+token.json
+credentials.json
+
+# Operating System Specific
+Thumbs.db
+Desktop.ini
+.DS_Store
