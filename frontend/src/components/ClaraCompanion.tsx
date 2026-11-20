@@ -203,7 +203,6 @@ export const ClaraCompanion: React.FC<ClaraCompanionProps> = ({
         ampTarget = 0.04 + (Math.sin(now / 800) + 1) * 0.03;
       }
       animAmp += (ampTarget - animAmp) * 0.2;
-      document.documentElement.style.setProperty('--amp', animAmp.toFixed(3));
 
       // 3. Natural Blinking Engine
       if (now > nextBlink && blinkProgress <= 0) {

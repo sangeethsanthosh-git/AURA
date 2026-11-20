@@ -4,10 +4,10 @@ const fs = require('fs');
 const http = require('http');
 const { spawn } = require('child_process');
 
-// Optimize Chromium renderer flags for desktop smoothness
+// Optimize Chromium renderer memory footprint and eliminate buffer leaks
+app.commandLine.appendSwitch('js-flags', '--max-old-space-size=256');
+app.commandLine.appendSwitch('renderer-process-limit', '2');
 app.commandLine.appendSwitch('enable-gpu-rasterization');
-app.commandLine.appendSwitch('enable-zero-copy');
-app.commandLine.appendSwitch('disable-background-timer-throttling');
 
 let mainWindow = null;
 let tray = null;
@@ -281,7 +281,7 @@ function createWindow() {
       contextIsolation: true,
       sandbox: true,
       webSecurity: true,
-      backgroundThrottling: false, // Keep companion responsive
+      backgroundThrottling: true, // Allow Chromium to throttle timers and release GPU buffers when idle/minimized
     },
   });
 

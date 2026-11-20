@@ -34,6 +34,8 @@ frontend/dist/
 *.db-shm
 *.log
 debug.log
+backend/data/*.jsonl
+backend/data/security_audit.jsonl
 query
 *.tmp
 

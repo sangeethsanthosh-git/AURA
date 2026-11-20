@@ -639,11 +639,22 @@ export function App() {
     return () => window.removeEventListener('mousemove', handleMouseMove);
   }, []);
 
-  // RequestAnimationFrame physics loop
+  // RequestAnimationFrame physics loop (optimized with delta-checks and visibility throttling)
   useEffect(() => {
     let animId: number;
+    let lastAmpStr = '';
+    let lastMouthStr = '';
+    let lastExStr = '';
+    let lastEyStr = '';
+    let lastSwayStr = '';
 
     const loop = (t: number) => {
+      // Pause computation and DOM style mutations when window is minimized or hidden
+      if (document.hidden) {
+        animId = requestAnimationFrame(loop);
+        return;
+      }
+
       const currentState = stateRef.current;
 
       let target = 0.05 + (Math.sin(t / 900) + 1) * 0.04;
@@ -659,8 +670,17 @@ export function App() {
       const currentAmp = ampRef.current.amp;
 
       const root = document.documentElement.style;
-      root.setProperty('--amp', currentAmp.toFixed(3));
-      root.setProperty('--mouth', (0.25 + currentAmp * 0.9).toFixed(3));
+      const ampStr = currentAmp.toFixed(2);
+      if (ampStr !== lastAmpStr) {
+        root.setProperty('--amp', ampStr);
+        lastAmpStr = ampStr;
+      }
+
+      const mouthStr = (0.25 + currentAmp * 0.9).toFixed(2);
+      if (mouthStr !== lastMouthStr) {
+        root.setProperty('--mouth', mouthStr);
+        lastMouthStr = mouthStr;
+      }
 
       const tx = currentState === 'thinking' ? -4 + Math.sin(t / 500) * 2 : mouseRef.current.mx;
       const ty = currentState === 'thinking' ? -4 : mouseRef.current.my;
@@ -668,11 +688,24 @@ export function App() {
       mouseRef.current.ex += (tx - mouseRef.current.ex) * 0.12;
       mouseRef.current.ey += (ty - mouseRef.current.ey) * 0.12;
 
-      root.setProperty('--ex', mouseRef.current.ex.toFixed(2));
-      root.setProperty('--ey', mouseRef.current.ey.toFixed(2));
+      const exStr = mouseRef.current.ex.toFixed(1);
+      if (exStr !== lastExStr) {
+        root.setProperty('--ex', exStr);
+        lastExStr = exStr;
+      }
+
+      const eyStr = mouseRef.current.ey.toFixed(1);
+      if (eyStr !== lastEyStr) {
+        root.setProperty('--ey', eyStr);
+        lastEyStr = eyStr;
+      }
 
       velocityRef.current *= 0.88;
-      root.setProperty('--sway', velocityRef.current.toFixed(2));
+      const swayStr = velocityRef.current.toFixed(1);
+      if (swayStr !== lastSwayStr) {
+        root.setProperty('--sway', swayStr);
+        lastSwayStr = swayStr;
+      }
 
       animId = requestAnimationFrame(loop);
     };
