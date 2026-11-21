@@ -44,10 +44,6 @@ class WakeWordService:
         # Acceptable phonetic variants for "AURA" in Whisper
         self.target_keywords = {"aura", "ora", "hey aura", "hey ora", "aurora"}
 
-        # Initialize openWakeWord if configured
-        if WAKE_WORD_ENGINE == "openwakeword":
-            self._init_openwakeword()
-
     def _init_openwakeword(self) -> None:
         """Initialize openWakeWord ONNX model."""
         try:
@@ -71,6 +67,10 @@ class WakeWordService:
         """Start background wake-word listening with non-blocking callback stream."""
         if self.is_running:
             return
+
+        # Load the optional detector only when the user enables wake listening.
+        if WAKE_WORD_ENGINE == "openwakeword" and self._oww_model is None:
+            self._init_openwakeword()
 
         self.is_running = True
         self._audio_queue = queue.Queue(maxsize=50)
@@ -136,30 +136,38 @@ class WakeWordService:
                 continue
 
             rms = float(np.sqrt(np.mean(chunk_flat ** 2)))
-            if rms < WAKE_WORD_ENERGY_THRESHOLD and len(rolling_buffer) == 0:
+            # If silent room noise, sleep slightly and avoid burning CPU on neural inference
+            if rms < WAKE_WORD_ENERGY_THRESHOLD:
+                if len(rolling_buffer) > 0:
+                    rolling_buffer.clear()
+                time.sleep(0.01)
                 continue
 
             rolling_buffer.extend(chunk_flat)
 
-            # openWakeWord prediction
+            # 1. Primary wake-word prediction via openWakeWord (lightweight ONNX)
             if self._oww_model is not None:
                 pcm16_chunk = (chunk_flat * 32767).astype(np.int16)
                 prediction = self._oww_model.predict(pcm16_chunk)
+                triggered = False
                 for model_name, score in prediction.items():
                     if score >= 0.5:
                         logger.info(f"openWakeWord triggered by '{model_name}' (score: {score:.2f})")
                         rolling_buffer.clear()
+                        triggered = True
                         if self.on_wake_detected:
                             self.on_wake_detected()
                         time.sleep(1.0)
                         break
+                if triggered:
+                    continue
 
-            # AURA spotter
-            if len(rolling_buffer) >= max_buffer_len:
+            # 2. Whisper AURA spotter fallback (ONLY used if openWakeWord model is unavailable)
+            if self._oww_model is None and len(rolling_buffer) >= max_buffer_len:
                 audio_window = np.array(rolling_buffer, dtype=np.float32)
                 rolling_buffer.clear()
 
-                if self.stt_service:
+                if self.stt_service and np.mean(np.abs(audio_window)) >= WAKE_WORD_ENERGY_THRESHOLD:
                     try:
                         detected_text = self.stt_service.transcribe(audio_window)
                         if detected_text and self.check_for_wake_phrase(detected_text):

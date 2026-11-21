@@ -65,16 +65,9 @@ const AVAILABLE_VOICES: VoiceOption[] = [
   { id: 'piper', name: 'Piper', label: 'Piper (Lessac)', sub: 'Offline local ONNX · 0 latency', gender: 'Female', engine: 'Local ONNX' },
 ];
 
-const REPLIES = [
-  "Sure thing. You've got a stand-up at ten and a design review at three. Everything else is clear.",
-  "Why did the developer go broke? Because he used up all his cache.",
-  "Done. I've opened it for you. Anything else?",
-  "Happy to help. Give me a second and I'll walk you through it.",
-];
-
 export function App() {
   const [state, setState] = useState<AssistantState>('idle');
-  const [wakeOn, setWakeOn] = useState<boolean>(true);
+  const [wakeOn, setWakeOn] = useState<boolean>(false);
   const [deepSearchOn, setDeepSearchOn] = useState<boolean>(true);
   const [isLive, setIsLive] = useState<boolean>(false);
   const [companion, setCompanion] = useState<CompanionType>(() => {
@@ -139,7 +132,6 @@ export function App() {
   const companionRef = useRef<HTMLDivElement | null>(null);
   const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const replyIndexRef = useRef<number>(0);
 
   // Drag physics refs
   const dragRef = useRef<{
@@ -170,6 +162,7 @@ export function App() {
   const typewriterDisplayedRef = useRef<string>('');
   const typewriterTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const currentStreamIdRef = useRef<string | null>(null);
+  const pendingTextRef = useRef<string | null>(null);
 
   // Whether user has sent messages in this session
   const hasMessages = messages.some((m) => m.role === 'user');
@@ -349,44 +342,6 @@ export function App() {
     }
   }, [clearTimers, companion]);
 
-  // Demo turn when backend is unreachable
-  const demoTurn = useCallback(
-    (userText: string) => {
-      clearTimers();
-      if (userText) addMsg('user', userText);
-      setState('thinking');
-      setBubbleText('Hmm, let me think…');
-
-      const t1 = setTimeout(() => {
-        setState('speaking');
-        const reply = REPLIES[replyIndexRef.current++ % REPLIES.length];
-        const newMsgId = `msg-${Date.now()}`;
-        setMessages((prev) => [...prev, { id: newMsgId, role: 'aura', text: '' }]);
-
-        let charIdx = 0;
-        const typingInterval = setInterval(() => {
-          charIdx++;
-          const currentSlice = reply.slice(0, charIdx);
-          setBubbleText(currentSlice);
-          setMessages((prev) =>
-            prev.map((m) => (m.id === newMsgId ? { ...m, text: currentSlice } : m))
-          );
-          if (charIdx >= reply.length) {
-            clearInterval(typingInterval);
-          }
-        }, 28);
-        intervalRef.current = typingInterval;
-
-        const t2 = setTimeout(() => {
-          setState('idle');
-        }, reply.length * 28 + 600);
-        timersRef.current.push(t2);
-      }, 1300);
-      timersRef.current.push(t1);
-    },
-    [addMsg, clearTimers]
-  );
-
   const startListening = useCallback(() => {
     if (stateRef.current === 'speaking') return;
     clearTimers();
@@ -404,9 +359,10 @@ export function App() {
       setState('thinking');
       setBubbleText('Hmm, let me think…');
     } else {
-      demoTurn("What's on my schedule today?");
+      setState('idle');
+      setBubbleText("Connecting to AURA core…");
     }
-  }, [demoTurn]);
+  }, []);
 
   const togglePTT = useCallback(() => {
     if (stateRef.current === 'listening') {
@@ -428,10 +384,14 @@ export function App() {
         setState('thinking');
         setBubbleText('Hmm, let me think…');
       } else {
-        demoTurn(v);
+        // Queue pending text and show connecting state rather than static mock replies
+        addMsg('user', v);
+        setState('thinking');
+        setBubbleText('Connecting to AURA background core…');
+        pendingTextRef.current = v;
       }
     },
-    [inputText, addMsg, demoTurn]
+    [inputText, addMsg]
   );
 
   // WebSocket connection management
@@ -452,12 +412,20 @@ export function App() {
         ws.onopen = () => {
           if (isDisposed) return;
           setIsLive(true);
+          // If the user entered a command while connecting, dispatch it now!
+          if (pendingTextRef.current) {
+            const queued = pendingTextRef.current;
+            pendingTextRef.current = null;
+            ws?.send(JSON.stringify({ type: 'send_text', text: queued }));
+            setState('thinking');
+            setBubbleText('Hmm, let me think…');
+          }
         };
 
         ws.onclose = ws.onerror = () => {
           if (isDisposed) return;
           setIsLive(false);
-          reconnectTimeout = setTimeout(connect, 3000);
+          reconnectTimeout = setTimeout(connect, 1000);
         };
 
         ws.onmessage = (event) => {

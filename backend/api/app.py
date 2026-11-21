@@ -24,14 +24,6 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-# Disable cuDNN to avoid Windows DLL symbol collision between ctranslate2 and PyTorch CUDA
-try:
-    import torch
-    if hasattr(torch.backends, "cudnn"):
-        torch.backends.cudnn.enabled = False
-except Exception:
-    pass
-
 from backend.config import (
     OLLAMA_MODEL,
     WAKE_WORD_PHRASE,
@@ -213,8 +205,6 @@ async def startup_event():
     emergency_stop.register_pipeline_canceller(cancel_current_pipeline)
     emergency_stop.register_canceller(desktop_controller.emergency_abort)
     vision_service.cleanup_temp_files(max_age_seconds=0)
-    stt_service.load_model()
-    wake_word_service.start()
     timer_scheduler_task = asyncio.create_task(_timer_scheduler_loop())
 
 
@@ -1290,6 +1280,7 @@ async def run_voice_pipeline() -> None:
         return
     this_task = asyncio.current_task()
     try:
+        await asyncio.to_thread(stt_service.load_model)
         await set_state("LISTENING")
         await broadcast({"type": "info", "message": "Listening for speech..."})
 
@@ -1512,8 +1503,9 @@ async def websocket_endpoint(websocket: WebSocket):
                 )
 
             elif msg_type in ("toggle_wake_word", "wake_word"):
-                enable = data.get("enabled", True)
+                enable = data.get("enabled", False)
                 if enable and not wake_word_service.is_running:
+                    await asyncio.to_thread(stt_service.load_model)
                     wake_word_service.start()
                 elif not enable and wake_word_service.is_running:
                     wake_word_service.stop()

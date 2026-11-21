@@ -159,11 +159,9 @@ def find_app_windows(keywords: list[str]) -> list[tuple[int, str, int]]:
             # Exclude internal helper windows and background system surfaces
             skip_terms = ("msctls_", "default ime", "olemainthreadwndname", "gdi+ window", "msctfime ui", "tooltips_class", "direct3d")
             if not any(skip in title_lower for skip in skip_terms):
-                r = wintypes.RECT()
-                try:
-                    user32.GetWindowRect(hwnd, ctypes.pointer(r))
-                except Exception:
-                    user32.GetWindowRect(hwnd, ctypes.byref(r))
+                from backend.desktop.window_manager import RECT
+                r = RECT()
+                user32.GetWindowRect(hwnd, ctypes.byref(r))
                 w = r.right - r.left
                 h = r.bottom - r.top
                 is_vis = bool(user32.IsWindowVisible(hwnd))

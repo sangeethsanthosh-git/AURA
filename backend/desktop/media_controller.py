@@ -360,7 +360,7 @@ class MediaController:
                     browser_win = win
                     break
         else:
-            # YouTube is already active in browser - navigate to results or use search bar
+            # YouTube is already active in browser - focus and type in search bar
             window_manager.focus_window(browser_win["hwnd"])
             time.sleep(0.3)
             rect = window_manager.get_window_rect(browser_win["hwnd"])
@@ -369,27 +369,33 @@ class MediaController:
             ry = rect.get("y", 0)
 
             # Move virtual hand smoothly to YouTube search bar
-            search_x = rx + (w // 2)
-            search_y = max(100, ry + 138)
+            search_x = rx + (w // 2) - 40
+            search_y = max(95, ry + 125)
+
+            # Clear any active video or dropdown overlay first
+            keyboard_controller.press_key("escape")
+            time.sleep(0.08)
+
             virtual_hand_controller.show(rx + (w // 4), ry + 200, state="normal")
             time.sleep(0.1)
             virtual_hand_controller.move_to(search_x, search_y, duration=0.45, state="pointer")
-            time.sleep(0.08)
+            time.sleep(0.1)
             virtual_hand_controller.click(search_x, search_y)
-            time.sleep(0.08)
-            # Send YouTube search hotkey '/' to guarantee search input focus
+            time.sleep(0.1)
+
+            # Send YouTube search hotkey '/' (0xBF) to guarantee search input focus
             keyboard_controller.press_key("/")
-            time.sleep(0.05)
+            time.sleep(0.08)
             keyboard_controller.hotkey("ctrl", "a")
-            time.sleep(0.05)
+            time.sleep(0.08)
             virtual_hand_controller.type_text(clean_q)
-            time.sleep(0.15)
+            time.sleep(0.2)
             keyboard_controller.press_key("enter")
 
-            # BUG FIX: Dismiss suggestions dropdown immediately so it doesn't linger over results
-            time.sleep(0.1)
+            # Dismiss suggestions dropdown immediately so it doesn't linger over results
+            time.sleep(0.15)
             keyboard_controller.press_key("escape")
-            time.sleep(0.1)
+            time.sleep(0.15)
             keyboard_controller.press_key("escape")
             time.sleep(0.2)
             virtual_hand_controller.hide()
@@ -444,7 +450,7 @@ class MediaController:
             # Dismiss any potential popup overlay
             keyboard_controller.press_key("escape")
         else:
-            # Already on YouTube: type in search bar
+            # Already on YouTube: focus and type in search bar
             window_manager.focus_window(browser_win["hwnd"])
             time.sleep(0.3)
             rect = window_manager.get_window_rect(browser_win["hwnd"])
@@ -453,28 +459,34 @@ class MediaController:
             ry = rect.get("y", 0)
 
             # Move virtual hand smoothly to YouTube search bar
-            search_x = rx + (w // 2)
-            search_y = max(100, ry + 138)
+            search_x = rx + (w // 2) - 40
+            search_y = max(95, ry + 125)
+
+            # Clear any active video or dropdown overlay first
+            keyboard_controller.press_key("escape")
+            time.sleep(0.08)
+
             virtual_hand_controller.show(rx + (w // 4), ry + 200, state="normal")
             time.sleep(0.1)
             virtual_hand_controller.move_to(search_x, search_y, duration=0.45, state="pointer")
-            time.sleep(0.08)
+            time.sleep(0.1)
             virtual_hand_controller.click(search_x, search_y)
-            time.sleep(0.08)
-            # Send YouTube search hotkey '/' to guarantee search input focus
+            time.sleep(0.1)
+
+            # Send YouTube search hotkey '/' (0xBF) to guarantee search input focus
             keyboard_controller.press_key("/")
-            time.sleep(0.05)
+            time.sleep(0.08)
             keyboard_controller.hotkey("ctrl", "a")
-            time.sleep(0.05)
+            time.sleep(0.08)
             virtual_hand_controller.type_text(clean_q)
-            time.sleep(0.15)
+            time.sleep(0.2)
             keyboard_controller.press_key("enter")
 
             # CRITICAL BUG FIX FOR BUG 3:
             # Dismiss the autocomplete suggestions dropdown so it cannot intercept the video thumbnail click!
-            time.sleep(0.1)
+            time.sleep(0.15)
             keyboard_controller.press_key("escape")
-            time.sleep(0.1)
+            time.sleep(0.15)
             keyboard_controller.press_key("escape")
             # Wait for search results to load
             time.sleep(1.2)

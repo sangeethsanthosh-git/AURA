@@ -37,6 +37,11 @@ class ResourceMonitor:
 
     def get_gpu_metrics(self) -> Dict[str, Any]:
         """Inspects NVIDIA CUDA / PyTorch GPU VRAM metrics if available."""
+        # PyTorch is large and the application uses CPU Whisper/Ollama. Avoid
+        # importing it just to report GPU metrics when no GPU metrics are used.
+        import sys
+        if "torch" not in sys.modules:
+            return self._empty_gpu_metrics()
         try:
             import torch
             if torch.cuda.is_available():
@@ -64,6 +69,10 @@ class ResourceMonitor:
         except Exception as e:
             logger.debug(f"GPU metrics probe note: {e}")
 
+        return self._empty_gpu_metrics()
+
+    @staticmethod
+    def _empty_gpu_metrics() -> Dict[str, Any]:
         return {
             "available": False,
             "device_name": "None / Integrated",

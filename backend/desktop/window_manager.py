@@ -247,24 +247,38 @@ class WindowManager:
         try:
             user32.AllowSetForegroundWindow(-1)
             if user32.IsIconic(hwnd):
-                user32.ShowWindowAsync(hwnd, SW_RESTORE)
+                user32.ShowWindow(hwnd, SW_RESTORE)
             else:
                 user32.ShowWindow(hwnd, SW_SHOW)
 
-            # Thread Input attachment trick for reliable focus
+            # Thread Input attachment trick for reliable foreground focus bypassing Windows lock
             cur_thread = kernel32.GetCurrentThreadId()
             fore_hwnd = user32.GetForegroundWindow()
             fore_thread = user32.GetWindowThreadProcessId(fore_hwnd, None) if fore_hwnd else 0
+            target_thread = user32.GetWindowThreadProcessId(hwnd, None) if hwnd else 0
 
-            attached = False
+            attached_fore = False
+            attached_target = False
             if fore_thread and cur_thread != fore_thread:
-                attached = bool(user32.AttachThreadInput(cur_thread, fore_thread, True))
+                attached_fore = bool(user32.AttachThreadInput(cur_thread, fore_thread, True))
+            if target_thread and cur_thread != target_thread:
+                attached_target = bool(user32.AttachThreadInput(cur_thread, target_thread, True))
+
+            # Pulse Alt key to bypass Windows LockSetForegroundWindow restriction
+            try:
+                user32.keybd_event(0x12, 0, 0, 0)  # VK_MENU down
+                user32.keybd_event(0x12, 0, 2, 0)  # VK_MENU up
+            except Exception:
+                pass
 
             user32.SetForegroundWindow(hwnd)
             user32.BringWindowToTop(hwnd)
+            user32.SetActiveWindow(hwnd)
 
-            if attached:
+            if attached_fore:
                 user32.AttachThreadInput(cur_thread, fore_thread, False)
+            if attached_target:
+                user32.AttachThreadInput(cur_thread, target_thread, False)
 
             time.sleep(0.08)
             return True

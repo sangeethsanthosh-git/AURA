@@ -69,6 +69,32 @@ VK_MAPPING = {
     "media_prev": 0xB1,
     "media_stop": 0xB2,
     "media_play_pause": 0xB3,
+    # Punctuation & OEM keys
+    "/": 0xBF,
+    "slash": 0xBF,
+    "forward_slash": 0xBF,
+    "\\": 0xDC,
+    "backslash": 0xDC,
+    "-": 0xBD,
+    "minus": 0xBD,
+    "=": 0xBB,
+    "equal": 0xBB,
+    "equals": 0xBB,
+    ",": 0xBC,
+    "comma": 0xBC,
+    ".": 0xBE,
+    "period": 0xBE,
+    "dot": 0xBE,
+    ";": 0xBA,
+    "semicolon": 0xBA,
+    "'": 0xDE,
+    "quote": 0xDE,
+    "single_quote": 0xDE,
+    "[": 0xDB,
+    "]": 0xDD,
+    "`": 0xC0,
+    "backquote": 0xC0,
+    "tilde": 0xC0,
 }
 
 # Win32 INPUT Structures for SendInput
@@ -253,7 +279,13 @@ class KeyboardController:
         if k in VK_MAPPING:
             return VK_MAPPING[k]
         if len(k) == 1:
-            # Alpha-numeric ASCII uppercase code
+            try:
+                scanned = user32.VkKeyScanW(ord(k))
+                if scanned != -1:
+                    return scanned & 0xFF
+            except Exception:
+                pass
+            # Alpha-numeric ASCII uppercase code fallback
             return ord(k.upper())
         return None
 
