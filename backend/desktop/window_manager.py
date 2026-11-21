@@ -100,6 +100,8 @@ class WindowManager:
             "rect": rect,
         }
 
+    get_active_window = get_foreground_window
+
     @staticmethod
     def get_window_title(hwnd: int) -> str:
         """Retrieves title of a window."""

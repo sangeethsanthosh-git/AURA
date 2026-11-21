@@ -179,13 +179,14 @@ class ActionPlanner:
             description="Toggle media playback (play/pause).",
             category="Media",
             risk_level=RiskLevel.LOW,
-            execute=lambda: {
+            parameters_schema={"platform": "string"},
+            execute=lambda platform=None: {
                 "handled": True,
                 "action": "media_play_pause",
                 "title": "Media Play / Pause",
                 "message": "Media playback state toggled.",
                 "spoken_response": "Toggled playback.",
-                "data": media_controller.play_pause(),
+                "data": media_controller.play_pause(platform=platform),
             },
         ))
         tool_registry.register(ToolDefinition(
@@ -193,13 +194,14 @@ class ActionPlanner:
             description="Skip to next media track.",
             category="Media",
             risk_level=RiskLevel.LOW,
-            execute=lambda: {
+            parameters_schema={"platform": "string"},
+            execute=lambda platform=None: {
                 "handled": True,
                 "action": "media_next",
                 "title": "Next Track",
                 "message": "Skipped to next track.",
                 "spoken_response": "Playing next track.",
-                "data": media_controller.next_track(),
+                "data": media_controller.next_track(platform=platform),
             },
         ))
         tool_registry.register(ToolDefinition(
@@ -207,13 +209,14 @@ class ActionPlanner:
             description="Return to previous media track.",
             category="Media",
             risk_level=RiskLevel.LOW,
-            execute=lambda: {
+            parameters_schema={"platform": "string"},
+            execute=lambda platform=None: {
                 "handled": True,
                 "action": "media_previous",
                 "title": "Previous Track",
                 "message": "Returned to previous track.",
                 "spoken_response": "Playing previous track.",
-                "data": media_controller.previous_track(),
+                "data": media_controller.previous_track(platform=platform),
             },
         ))
 
@@ -430,14 +433,14 @@ class ActionPlanner:
             description="Seek forward or backward by seconds on active media player (YouTube or Spotify).",
             category="Media",
             risk_level=RiskLevel.LOW,
-            parameters_schema={"seconds": "int"},
-            execute=lambda seconds=10: {
+            parameters_schema={"seconds": "int", "platform": "string"},
+            execute=lambda seconds=10, platform=None: {
                 "handled": True,
                 "action": "media_seek",
                 "title": f"Seeked {'Forward' if int(seconds) > 0 else 'Backward'}",
                 "message": f"Seeked {'forward' if int(seconds) > 0 else 'backward'} {abs(int(seconds))} seconds.",
                 "spoken_response": f"Seeked {'forward' if int(seconds) > 0 else 'backward'} {abs(int(seconds))} seconds.",
-                "data": media_controller.seek_relative(int(seconds)),
+                "data": media_controller.seek_relative(int(seconds), platform=platform),
             },
         ))
         tool_registry.register(ToolDefinition(
@@ -445,14 +448,14 @@ class ActionPlanner:
             description="Seek to percentage (0-100%) on active media player timeline scrubber.",
             category="Media",
             risk_level=RiskLevel.LOW,
-            parameters_schema={"percent": "int"},
-            execute=lambda percent=50: {
+            parameters_schema={"percent": "int", "platform": "string"},
+            execute=lambda percent=50, platform=None: {
                 "handled": True,
                 "action": "media_seek",
                 "title": f"Seeked to {int(percent)}%",
                 "message": f"Seeked to {int(percent)}% on timeline scrubber.",
                 "spoken_response": f"Seeked to {int(percent)} percent.",
-                "data": media_controller.seek_percentage(int(percent)),
+                "data": media_controller.seek_percentage(int(percent), platform=platform),
             },
         ))
         tool_registry.register(ToolDefinition(
@@ -809,36 +812,39 @@ class ActionPlanner:
                 return tool_registry.execute("desktop_browser_search", browser=b_name, query=b_query)
 
         # 4c. Timeline Scrubber & Seeking Controls (YouTube & Spotify)
+        # Check if user explicitly mentioned a target platform (e.g. "forward 10s on youtube")
+        platform_hint = "spotify" if "spotify" in p else ("youtube" if any(k in p for k in ("youtube", "yt", "video")) else None)
+
         # Relative forward/backward seek: e.g. "forward 10 seconds", "skip 10s", "rewind 10 seconds", "go back 5s"
         seek_fwd_m = re.search(
             r"\b(?:forward|fast\s+forward|skip\s+forward|go\s+forward)\s+(?:by\s+)?(\d+)\s*(?:s|sec|secs|seconds)?\b",
             p,
         )
         if seek_fwd_m:
-            return tool_registry.execute("desktop_media_seek_relative", seconds=int(seek_fwd_m.group(1)))
+            return tool_registry.execute("desktop_media_seek_relative", seconds=int(seek_fwd_m.group(1)), platform=platform_hint)
 
         seek_back_m = re.search(
             r"\b(?:rewind|backward|back|go\s+back|skip\s+backward|skip\s+back)\s+(?:by\s+)?(\d+)\s*(?:s|sec|secs|seconds)?\b",
             p,
         )
         if seek_back_m:
-            return tool_registry.execute("desktop_media_seek_relative", seconds=-int(seek_back_m.group(1)))
+            return tool_registry.execute("desktop_media_seek_relative", seconds=-int(seek_back_m.group(1)), platform=platform_hint)
 
         if re.search(r"^(?:fast\s+forward|skip\s+forward)$", p):
-            return tool_registry.execute("desktop_media_seek_relative", seconds=10)
+            return tool_registry.execute("desktop_media_seek_relative", seconds=10, platform=platform_hint)
         if re.search(r"^(?:rewind|go\s+back)$", p):
-            return tool_registry.execute("desktop_media_seek_relative", seconds=-10)
+            return tool_registry.execute("desktop_media_seek_relative", seconds=-10, platform=platform_hint)
 
         # Percentage seek: e.g. "seek to 50%", "go to 50%", "go to middle", "restart"
         seek_pct_m = re.search(r"\b(?:seek|go|jump|scrub)\s+(?:to\s+)?(\d{1,3})\s*(?:%|\bpercent\b)", p)
         if seek_pct_m:
-            return tool_registry.execute("desktop_media_seek_percent", percent=int(seek_pct_m.group(1)))
+            return tool_registry.execute("desktop_media_seek_percent", percent=int(seek_pct_m.group(1)), platform=platform_hint)
 
         if re.search(r"\b(?:go\s+to|seek\s+to)\s+(?:the\s+)?(?:middle|half)\b", p):
-            return tool_registry.execute("desktop_media_seek_percent", percent=50)
+            return tool_registry.execute("desktop_media_seek_percent", percent=50, platform=platform_hint)
 
         if re.search(r"^(?:restart|restart\s+video|restart\s+song|seek\s+to\s+start|go\s+to\s+beginning|from\s+the\s+start)$", p):
-            return tool_registry.execute("desktop_media_seek_percent", percent=0)
+            return tool_registry.execute("desktop_media_seek_percent", percent=0, platform=platform_hint)
 
         # Time seek: e.g. "go to 2:30", "go to 1 minute 30 seconds"
         seek_time_m = re.search(r"\b(?:go\s+to|jump\s+to|seek\s+to)\s+(\d{1,2}):(\d{2})\b", p)
@@ -858,17 +864,17 @@ class ActionPlanner:
             )
 
         # 4d. Media Next & Previous track
-        if re.search(r"^(?:please\s+)?(?:can you\s+)?(?:next\s+song|next\s+track|next\s+video|next|skip\s+song|skip\s+track|skip)$", p):
-            return tool_registry.execute("media_next")
-        if re.search(r"^(?:please\s+)?(?:can you\s+)?(?:previous\s+song|previous\s+track|previous\s+video|previous|prev\s+song|prev\s+track|prev|replay\s+song|last\s+song)$", p):
-            return tool_registry.execute("media_previous")
+        if re.search(r"^(?:please\s+)?(?:can you\s+)?(?:next\s+song|next\s+track|next\s+video|next|skip\s+song|skip\s+track|skip)(?:\s+(?:on|in)\s+(?:youtube|yt|spotify))?$", p):
+            return tool_registry.execute("media_next", platform=platform_hint)
+        if re.search(r"^(?:please\s+)?(?:can you\s+)?(?:previous\s+song|previous\s+track|previous\s+video|previous|prev\s+song|prev\s+track|prev|replay\s+song|last\s+song)(?:\s+(?:on|in)\s+(?:youtube|yt|spotify))?$", p):
+            return tool_registry.execute("media_previous", platform=platform_hint)
 
         # 4e. Media Play/Pause/Resume intent (CRITICAL FIX FOR "PLAY IT", "play", "pause", "resume")
         if re.search(
-            r"^(?:please\s+)?(?:can you\s+)?(?:play\s+it|resume\s+it|resume|play\s+pause|toggle\s+play|pause\s+playback|play\s+playback|pause|stop\s+playback|stop\s+playing)$",
+            r"^(?:please\s+)?(?:can you\s+)?(?:play\s+it|resume\s+it|resume|play\s+pause|toggle\s+play|pause\s+playback|play\s+playback|pause|stop\s+playback|stop\s+playing)(?:\s+(?:on|in)\s+(?:youtube|yt|spotify))?$",
             p,
         ):
-            return tool_registry.execute("media_play_pause")
+            return tool_registry.execute("media_play_pause", platform=platform_hint)
 
         # 4f. Follow-up media result selection
         sel_m = re.search(

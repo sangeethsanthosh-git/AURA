@@ -28,148 +28,208 @@ class MediaController:
         # Context retention for follow-up commands (e.g. "play the second result")
         self.last_media_context: Optional[Dict[str, Any]] = None
 
-    def play_pause(self) -> Dict[str, Any]:
-        """Toggles global media play/pause via Windows multimedia key and active media app."""
-        # 1. Check if Spotify window is active
-        spotify_win = window_manager.find_window("spotify")
-        if spotify_win and spotify_win.get("hwnd"):
-            try:
-                window_manager.focus_window(spotify_win["hwnd"])
-                time.sleep(0.1)
-                keyboard_controller.press_key("space")
-                return {
-                    "action": "play_pause",
-                    "platform": "spotify",
-                    "success": True,
-                    "message": "Toggled Spotify playback",
-                    "spoken_response": "Toggled playback.",
-                }
-            except Exception:
-                pass
+    def _resolve_target_platform(self, requested_platform: Optional[str] = None) -> str:
+        """
+        Intelligently resolves whether the target media player is YouTube or Spotify.
+        Considers explicit request, current foreground window, and recent conversation media context.
+        """
+        if requested_platform:
+            p = requested_platform.strip().lower()
+            if "spot" in p:
+                return "spotify"
+            if "you" in p or "yt" in p:
+                return "youtube"
 
-        # 2. Check if YouTube / Browser is active
-        browser_win = None
+        active = window_manager.get_active_window()
+        active_title = active.get("title", "").lower()
+
+        # If Spotify is the active foreground window
+        if "spotify" in active_title:
+            return "spotify"
+
+        # If browser / YouTube is the active foreground window
+        if any(b in active_title for b in ("youtube", "chrome", "msedge", "firefox", "brave")):
+            return "youtube"
+
+        # Check last media context
+        if self.last_media_context and self.last_media_context.get("platform"):
+            return self.last_media_context["platform"]
+
+        # Check if browser with YouTube is open
+        for b in ("youtube", "chrome", "msedge", "firefox", "brave"):
+            win = window_manager.find_window(b)
+            if win and win.get("hwnd") and "youtube" in win.get("title", "").lower():
+                return "youtube"
+
+        # Check if Spotify window is open
+        spotify_win = window_manager.find_window("spotify")
+        if spotify_win and spotify_win.get("hwnd") and not window_manager.is_window_minimized(spotify_win["hwnd"]):
+            return "spotify"
+
+        return "youtube"
+
+    def _get_youtube_window(self) -> Optional[Dict[str, Any]]:
+        """Finds the browser window showing YouTube, or fallback browser window."""
         for b in ("youtube", "chrome", "msedge", "firefox", "brave"):
             win = window_manager.find_window(b)
             if win and win.get("hwnd") and win.get("rect", {}).get("width", 0) >= 300:
-                browser_win = win
-                break
-        if browser_win and "youtube" in browser_win.get("title", "").lower():
-            try:
-                window_manager.focus_window(browser_win["hwnd"])
-                time.sleep(0.1)
-                keyboard_controller.press_key("k")
-                return {
-                    "action": "play_pause",
-                    "platform": "youtube",
-                    "success": True,
-                    "message": "Toggled YouTube playback",
-                    "spoken_response": "Toggled playback.",
-                }
-            except Exception:
-                pass
+                if "youtube" in win.get("title", "").lower():
+                    return win
+        for b in ("chrome", "msedge", "firefox", "brave"):
+            win = window_manager.find_window(b)
+            if win and win.get("hwnd") and win.get("rect", {}).get("width", 0) >= 300:
+                return win
+        return None
+
+    def play_pause(self, platform: Optional[str] = None) -> Dict[str, Any]:
+        """Toggles media play/pause on active player (YouTube or Spotify)."""
+        target = self._resolve_target_platform(platform)
+
+        if target == "youtube":
+            b_win = self._get_youtube_window()
+            if b_win and b_win.get("hwnd"):
+                try:
+                    window_manager.focus_window(b_win["hwnd"])
+                    time.sleep(0.12)
+                    # Clear search bar or input focus first so 'k' acts on the video player
+                    keyboard_controller.press_key("escape")
+                    time.sleep(0.06)
+                    keyboard_controller.press_key("k")
+                    time.sleep(0.05)
+                    return {
+                        "action": "play_pause",
+                        "platform": "youtube",
+                        "success": True,
+                        "message": "Toggled YouTube playback.",
+                        "spoken_response": "Toggled playback.",
+                    }
+                except Exception:
+                    pass
+
+        elif target == "spotify":
+            spotify_win = window_manager.find_window("spotify")
+            if spotify_win and spotify_win.get("hwnd"):
+                try:
+                    window_manager.focus_window(spotify_win["hwnd"])
+                    time.sleep(0.12)
+                    keyboard_controller.press_key("space")
+                    return {
+                        "action": "play_pause",
+                        "platform": "spotify",
+                        "success": True,
+                        "message": "Toggled Spotify playback.",
+                        "spoken_response": "Toggled playback.",
+                    }
+                except Exception:
+                    pass
 
         # Global fallback: multimedia play/pause
         keyboard_controller.press_key("media_play_pause")
         return {
             "action": "play_pause",
             "success": True,
-            "message": "Toggled media playback",
+            "message": "Toggled media playback.",
             "spoken_response": "Toggled playback.",
         }
 
-    def next_track(self) -> Dict[str, Any]:
-        """Skips to the next track on active player or globally."""
-        spotify_win = window_manager.find_window("spotify")
-        if spotify_win and spotify_win.get("hwnd"):
-            try:
-                window_manager.focus_window(spotify_win["hwnd"])
-                time.sleep(0.1)
-                keyboard_controller.hotkey("ctrl", "right")
-                return {
-                    "action": "next_track",
-                    "platform": "spotify",
-                    "success": True,
-                    "message": "Skipped to next track on Spotify",
-                    "spoken_response": "Skipped to next track.",
-                }
-            except Exception:
-                pass
+    def next_track(self, platform: Optional[str] = None) -> Dict[str, Any]:
+        """Skips to the next track on active player (YouTube or Spotify)."""
+        target = self._resolve_target_platform(platform)
 
-        browser_win = None
-        for b in ("youtube", "chrome", "msedge", "firefox", "brave"):
-            win = window_manager.find_window(b)
-            if win and win.get("hwnd") and win.get("rect", {}).get("width", 0) >= 300:
-                browser_win = win
-                break
-        if browser_win and "youtube" in browser_win.get("title", "").lower():
-            try:
-                window_manager.focus_window(browser_win["hwnd"])
-                time.sleep(0.1)
-                keyboard_controller.hotkey("shift", "n")
-                return {
-                    "action": "next_track",
-                    "platform": "youtube",
-                    "success": True,
-                    "message": "Skipped to next video on YouTube",
-                    "spoken_response": "Skipped to next video.",
-                }
-            except Exception:
-                pass
+        if target == "youtube":
+            b_win = self._get_youtube_window()
+            if b_win and b_win.get("hwnd"):
+                try:
+                    window_manager.focus_window(b_win["hwnd"])
+                    time.sleep(0.12)
+                    # Clear search bar or input focus so Shift+N skips to next video
+                    keyboard_controller.press_key("escape")
+                    time.sleep(0.06)
+                    keyboard_controller.hotkey("shift", "n")
+                    time.sleep(0.1)
+                    return {
+                        "action": "next_track",
+                        "platform": "youtube",
+                        "success": True,
+                        "message": "Skipped to next video on YouTube.",
+                        "spoken_response": "Playing next video.",
+                    }
+                except Exception:
+                    pass
+
+        elif target == "spotify":
+            spotify_win = window_manager.find_window("spotify")
+            if spotify_win and spotify_win.get("hwnd"):
+                try:
+                    window_manager.focus_window(spotify_win["hwnd"])
+                    time.sleep(0.12)
+                    keyboard_controller.hotkey("ctrl", "right")
+                    return {
+                        "action": "next_track",
+                        "platform": "spotify",
+                        "success": True,
+                        "message": "Skipped to next track on Spotify.",
+                        "spoken_response": "Playing next track.",
+                    }
+                except Exception:
+                    pass
 
         keyboard_controller.press_key("media_next")
         return {
             "action": "next_track",
             "success": True,
-            "message": "Skipped to next track",
-            "spoken_response": "Skipped to next track.",
+            "message": "Skipped to next track.",
+            "spoken_response": "Playing next track.",
         }
 
-    def previous_track(self) -> Dict[str, Any]:
-        """Returns to the previous track on active player or globally."""
-        spotify_win = window_manager.find_window("spotify")
-        if spotify_win and spotify_win.get("hwnd"):
-            try:
-                window_manager.focus_window(spotify_win["hwnd"])
-                time.sleep(0.1)
-                keyboard_controller.hotkey("ctrl", "left")
-                return {
-                    "action": "previous_track",
-                    "platform": "spotify",
-                    "success": True,
-                    "message": "Returned to previous track on Spotify",
-                    "spoken_response": "Returned to previous track.",
-                }
-            except Exception:
-                pass
+    def previous_track(self, platform: Optional[str] = None) -> Dict[str, Any]:
+        """Returns to the previous track on active player (YouTube or Spotify)."""
+        target = self._resolve_target_platform(platform)
 
-        browser_win = None
-        for b in ("youtube", "chrome", "msedge", "firefox", "brave"):
-            win = window_manager.find_window(b)
-            if win and win.get("hwnd") and win.get("rect", {}).get("width", 0) >= 300:
-                browser_win = win
-                break
-        if browser_win and "youtube" in browser_win.get("title", "").lower():
-            try:
-                window_manager.focus_window(browser_win["hwnd"])
-                time.sleep(0.1)
-                keyboard_controller.hotkey("shift", "p")
-                return {
-                    "action": "previous_track",
-                    "platform": "youtube",
-                    "success": True,
-                    "message": "Returned to previous video on YouTube",
-                    "spoken_response": "Returned to previous video.",
-                }
-            except Exception:
-                pass
+        if target == "youtube":
+            b_win = self._get_youtube_window()
+            if b_win and b_win.get("hwnd"):
+                try:
+                    window_manager.focus_window(b_win["hwnd"])
+                    time.sleep(0.12)
+                    # Clear search bar or input focus so Shift+P goes to previous video
+                    keyboard_controller.press_key("escape")
+                    time.sleep(0.06)
+                    keyboard_controller.hotkey("shift", "p")
+                    time.sleep(0.1)
+                    return {
+                        "action": "previous_track",
+                        "platform": "youtube",
+                        "success": True,
+                        "message": "Returned to previous video on YouTube.",
+                        "spoken_response": "Playing previous video.",
+                    }
+                except Exception:
+                    pass
+
+        elif target == "spotify":
+            spotify_win = window_manager.find_window("spotify")
+            if spotify_win and spotify_win.get("hwnd"):
+                try:
+                    window_manager.focus_window(spotify_win["hwnd"])
+                    time.sleep(0.12)
+                    keyboard_controller.hotkey("ctrl", "left")
+                    return {
+                        "action": "previous_track",
+                        "platform": "spotify",
+                        "success": True,
+                        "message": "Returned to previous track on Spotify.",
+                        "spoken_response": "Playing previous track.",
+                    }
+                except Exception:
+                    pass
 
         keyboard_controller.press_key("media_prev")
         return {
             "action": "previous_track",
             "success": True,
-            "message": "Returned to previous track",
-            "spoken_response": "Returned to previous track.",
+            "message": "Returned to previous track.",
+            "spoken_response": "Playing previous track.",
         }
 
     def volume_up(self, steps: int = 5) -> Dict[str, Any]:
@@ -601,7 +661,7 @@ class MediaController:
     # TIMELINE CONTROLLER / SEEKING (YouTube & Spotify)
     # =========================================================================
 
-    def seek_relative(self, seconds: int) -> Dict[str, Any]:
+    def seek_relative(self, seconds: int, platform: Optional[str] = None) -> Dict[str, Any]:
         """
         Seeks forward or backward by `seconds` on the currently active media player.
         Supports YouTube (shortcuts L/J for 10s, Right/Left for 5s) and Spotify (Shift+Right/Shift+Left),
@@ -611,100 +671,94 @@ class MediaController:
         direction_fwd = seconds > 0
         abs_sec = abs(seconds)
         screen_w, screen_h = mouse_controller.get_screen_resolution()
+        target = self._resolve_target_platform(platform)
 
-        # 1. Check if Spotify is active
-        spotify_win = window_manager.find_window("spotify")
-        is_spotify = spotify_win and spotify_win.get("hwnd") and (
-            spotify_win.get("is_active") or "spotify" in (window_manager.get_active_window().get("title", "").lower())
-        )
+        if target == "youtube":
+            b_win = self._get_youtube_window()
+            if b_win and b_win.get("hwnd"):
+                window_manager.focus_window(b_win["hwnd"])
+                time.sleep(0.12)
+                rect = window_manager.get_window_rect(b_win["hwnd"])
+                rx, ry = rect.get("x", 0), rect.get("y", 0)
+                w = rect.get("width", screen_w)
+                h = rect.get("height", screen_h)
 
-        if is_spotify:
-            window_manager.focus_window(spotify_win["hwnd"])
-            time.sleep(0.1)
-            rect = window_manager.get_window_rect(spotify_win["hwnd"])
-            rx, ry = rect.get("x", 0), rect.get("y", 0)
-            w = rect.get("width", screen_w)
-            h = rect.get("height", screen_h)
+                # CRITICAL: Blur search bar or comment input focus first with Escape!
+                keyboard_controller.press_key("escape")
+                time.sleep(0.06)
+                keyboard_controller.press_key("escape")
+                time.sleep(0.06)
 
-            # Spotify native seek shortcut: Shift + Right / Shift + Left (~15s per press)
-            presses = max(1, abs_sec // 10)
-            for _ in range(presses):
-                keyboard_controller.hotkey("shift", "right" if direction_fwd else "left")
-                time.sleep(0.05)
+                # YouTube shortcuts: L = +10s, J = -10s, Right = +5s, Left = -5s
+                if abs_sec % 10 == 0:
+                    key = "l" if direction_fwd else "j"
+                    for _ in range(abs_sec // 10):
+                        keyboard_controller.press_key(key)
+                        time.sleep(0.05)
+                else:
+                    key = "right" if direction_fwd else "left"
+                    for _ in range(max(1, abs_sec // 5)):
+                        keyboard_controller.press_key(key)
+                        time.sleep(0.05)
 
-            # Visually glide Kawaii Pixel Cat Paw along Spotify scrubber bar (bottom center)
-            scrubber_y = ry + h - 25
-            scrub_center_x = rx + (w // 2)
-            start_x = scrub_center_x - (40 if direction_fwd else -40)
-            end_x = scrub_center_x + (40 if direction_fwd else -40)
+                # Visually glide Kawaii Pixel Cat Paw along YouTube video progress line
+                vid_scrubber_y = ry + int(h * 0.68)
+                scrub_center_x = rx + int(w * 0.45)
+                start_x = scrub_center_x - (60 if direction_fwd else -60)
+                end_x = scrub_center_x + (60 if direction_fwd else -60)
 
-            virtual_hand_controller.show(start_x, scrubber_y, state="pointer")
-            time.sleep(0.08)
-            virtual_hand_controller.move_to(end_x, scrubber_y, duration=0.35, state="click")
-            time.sleep(0.1)
-            virtual_hand_controller.hide()
+                virtual_hand_controller.show(start_x, vid_scrubber_y, state="pointer")
+                time.sleep(0.08)
+                virtual_hand_controller.move_to(end_x, vid_scrubber_y, duration=0.35, state="click")
+                time.sleep(0.1)
+                virtual_hand_controller.hide()
 
-            msg = f"Seeked {'forward' if direction_fwd else 'backward'} {abs_sec} seconds on Spotify."
-            return {
-                "action": "seek_relative",
-                "platform": "spotify",
-                "seconds": seconds,
-                "success": True,
-                "message": msg,
-                "spoken_response": msg,
-            }
+                msg = f"Seeked {'forward' if direction_fwd else 'backward'} {abs_sec} seconds on YouTube."
+                return {
+                    "action": "seek_relative",
+                    "platform": "youtube",
+                    "seconds": seconds,
+                    "success": True,
+                    "message": msg,
+                    "spoken_response": msg,
+                }
 
-        # 2. Check if YouTube / Browser is active
-        browser_win = None
-        for b in ("youtube", "chrome", "msedge", "firefox", "brave"):
-            win = window_manager.find_window(b)
-            if win and win.get("hwnd") and win.get("rect", {}).get("width", 0) >= 300:
-                browser_win = win
-                break
+        elif target == "spotify":
+            spotify_win = window_manager.find_window("spotify")
+            if spotify_win and spotify_win.get("hwnd"):
+                window_manager.focus_window(spotify_win["hwnd"])
+                time.sleep(0.12)
+                rect = window_manager.get_window_rect(spotify_win["hwnd"])
+                rx, ry = rect.get("x", 0), rect.get("y", 0)
+                w = rect.get("width", screen_w)
+                h = rect.get("height", screen_h)
 
-        if browser_win:
-            window_manager.focus_window(browser_win["hwnd"])
-            time.sleep(0.1)
-            rect = window_manager.get_window_rect(browser_win["hwnd"])
-            rx, ry = rect.get("x", 0), rect.get("y", 0)
-            w = rect.get("width", screen_w)
-            h = rect.get("height", screen_h)
+                presses = max(1, abs_sec // 10)
+                for _ in range(presses):
+                    keyboard_controller.hotkey("shift", "right" if direction_fwd else "left")
+                    time.sleep(0.05)
 
-            # YouTube shortcuts: L = +10s, J = -10s, Right = +5s, Left = -5s
-            if abs_sec % 10 == 0:
-                key = "l" if direction_fwd else "j"
-                for _ in range(abs_sec // 10):
-                    keyboard_controller.press_key(key)
-                    time.sleep(0.06)
-            else:
-                key = "right" if direction_fwd else "left"
-                for _ in range(max(1, abs_sec // 5)):
-                    keyboard_controller.press_key(key)
-                    time.sleep(0.06)
+                scrubber_y = ry + h - 25
+                scrub_center_x = rx + (w // 2)
+                start_x = scrub_center_x - (40 if direction_fwd else -40)
+                end_x = scrub_center_x + (40 if direction_fwd else -40)
 
-            # Visually glide Kawaii Pixel Cat Paw along YouTube video progress line
-            vid_scrubber_y = ry + int(h * 0.62)
-            scrub_center_x = rx + int(w * 0.45)
-            start_x = scrub_center_x - (50 if direction_fwd else -50)
-            end_x = scrub_center_x + (50 if direction_fwd else -50)
+                virtual_hand_controller.show(start_x, scrubber_y, state="pointer")
+                time.sleep(0.08)
+                virtual_hand_controller.move_to(end_x, scrubber_y, duration=0.35, state="click")
+                time.sleep(0.1)
+                virtual_hand_controller.hide()
 
-            virtual_hand_controller.show(start_x, vid_scrubber_y, state="pointer")
-            time.sleep(0.08)
-            virtual_hand_controller.move_to(end_x, vid_scrubber_y, duration=0.35, state="click")
-            time.sleep(0.1)
-            virtual_hand_controller.hide()
+                msg = f"Seeked {'forward' if direction_fwd else 'backward'} {abs_sec} seconds on Spotify."
+                return {
+                    "action": "seek_relative",
+                    "platform": "spotify",
+                    "seconds": seconds,
+                    "success": True,
+                    "message": msg,
+                    "spoken_response": msg,
+                }
 
-            msg = f"Seeked {'forward' if direction_fwd else 'backward'} {abs_sec} seconds on YouTube."
-            return {
-                "action": "seek_relative",
-                "platform": "youtube",
-                "seconds": seconds,
-                "success": True,
-                "message": msg,
-                "spoken_response": msg,
-            }
-
-        # Fallback: global media keys do not support relative seek, but we report attempt
         msg = f"Skipped {'forward' if direction_fwd else 'backward'} {abs_sec} seconds."
         return {
             "action": "seek_relative",
@@ -714,96 +768,92 @@ class MediaController:
             "spoken_response": msg,
         }
 
-    def seek_percentage(self, percent: int) -> Dict[str, Any]:
+    def seek_percentage(self, percent: int, platform: Optional[str] = None) -> Dict[str, Any]:
         """
         Seeks playback to a specific percentage (0-100%) on YouTube or Spotify.
-        Uses YouTube numeric keys (0-9) or Spotify scrubber bar with Kawaii Pixel Cat Paw clicking.
+        Uses YouTube numeric keys (0-9) or Spotify scrubber bar with Kawaii Pixel Cat Paw timeline glide.
         """
         from backend.desktop.virtual_hand_controller import virtual_hand_controller
         clamped_pct = max(0, min(100, percent))
         screen_w, screen_h = mouse_controller.get_screen_resolution()
+        target = self._resolve_target_platform(platform)
 
-        # 1. Spotify
-        spotify_win = window_manager.find_window("spotify")
-        is_spotify = spotify_win and spotify_win.get("hwnd") and (
-            spotify_win.get("is_active") or "spotify" in (window_manager.get_active_window().get("title", "").lower())
-        )
+        if target == "youtube":
+            b_win = self._get_youtube_window()
+            if b_win and b_win.get("hwnd"):
+                window_manager.focus_window(b_win["hwnd"])
+                time.sleep(0.12)
+                rect = window_manager.get_window_rect(b_win["hwnd"])
+                rx, ry = rect.get("x", 0), rect.get("y", 0)
+                w = rect.get("width", screen_w)
+                h = rect.get("height", screen_h)
 
-        if is_spotify:
-            window_manager.focus_window(spotify_win["hwnd"])
-            time.sleep(0.1)
-            rect = window_manager.get_window_rect(spotify_win["hwnd"])
-            rx, ry = rect.get("x", 0), rect.get("y", 0)
-            w = rect.get("width", screen_w)
-            h = rect.get("height", screen_h)
+                # CRITICAL: Blur search bar or comment input with Escape twice so digit key jumps the video player!
+                keyboard_controller.press_key("escape")
+                time.sleep(0.06)
+                keyboard_controller.press_key("escape")
+                time.sleep(0.06)
 
-            # Spotify bottom player progress bar spans ~300px centered horizontally
-            scrubber_y = ry + h - 25
-            bar_start_x = rx + (w // 2) - 150
-            bar_width = 300
-            target_x = bar_start_x + int(bar_width * (clamped_pct / 100.0))
+                # YouTube keyboard shortcut: digits 0..9 seek to 0%, 10%, ..., 90%
+                digit = str(min(9, max(0, clamped_pct // 10)))
+                keyboard_controller.press_key(digit)
 
-            virtual_hand_controller.show(target_x, scrubber_y - 30, state="normal")
-            time.sleep(0.08)
-            virtual_hand_controller.move_to(target_x, scrubber_y, duration=0.4, state="click")
-            time.sleep(0.1)
-            virtual_hand_controller.click(target_x, scrubber_y)
-            time.sleep(0.2)
-            virtual_hand_controller.hide()
+                # Visually glide Kawaii Pixel Cat Paw along YouTube video progress line
+                vid_scrubber_y = ry + int(h * 0.68)
+                bar_start_x = rx + int(w * 0.15)
+                bar_width = int(w * 0.60)
+                target_x = bar_start_x + int(bar_width * (clamped_pct / 100.0))
 
-            msg = f"Seeked to {clamped_pct}% on Spotify."
-            return {
-                "action": "seek_percentage",
-                "platform": "spotify",
-                "percent": clamped_pct,
-                "success": True,
-                "message": msg,
-                "spoken_response": msg,
-            }
+                virtual_hand_controller.show(target_x, vid_scrubber_y - 25, state="normal")
+                time.sleep(0.08)
+                virtual_hand_controller.move_to(target_x, vid_scrubber_y, duration=0.4, state="click")
+                time.sleep(0.15)
+                # DO NOT click into video frame (clicking pauses the video); digit shortcut already seeked!
+                virtual_hand_controller.hide()
 
-        # 2. YouTube
-        browser_win = None
-        for b in ("youtube", "chrome", "msedge", "firefox", "brave"):
-            win = window_manager.find_window(b)
-            if win and win.get("hwnd") and win.get("rect", {}).get("width", 0) >= 300:
-                browser_win = win
-                break
+                msg = f"Seeked to {clamped_pct}% on YouTube."
+                return {
+                    "action": "seek_percentage",
+                    "platform": "youtube",
+                    "percent": clamped_pct,
+                    "success": True,
+                    "message": msg,
+                    "spoken_response": msg,
+                }
 
-        if browser_win:
-            window_manager.focus_window(browser_win["hwnd"])
-            time.sleep(0.1)
-            rect = window_manager.get_window_rect(browser_win["hwnd"])
-            rx, ry = rect.get("x", 0), rect.get("y", 0)
-            w = rect.get("width", screen_w)
-            h = rect.get("height", screen_h)
+        elif target == "spotify":
+            spotify_win = window_manager.find_window("spotify")
+            if spotify_win and spotify_win.get("hwnd"):
+                window_manager.focus_window(spotify_win["hwnd"])
+                time.sleep(0.12)
+                rect = window_manager.get_window_rect(spotify_win["hwnd"])
+                rx, ry = rect.get("x", 0), rect.get("y", 0)
+                w = rect.get("width", screen_w)
+                h = rect.get("height", screen_h)
 
-            # YouTube keyboard shortcut: digits 0..9 seek to 0%, 10%, ..., 90%
-            digit = str(min(9, max(0, clamped_pct // 10)))
-            keyboard_controller.press_key(digit)
+                # Spotify bottom player progress bar spans ~300px centered horizontally
+                scrubber_y = ry + h - 25
+                bar_start_x = rx + (w // 2) - 150
+                bar_width = 300
+                target_x = bar_start_x + int(bar_width * (clamped_pct / 100.0))
 
-            # Visually glide Kawaii Pixel Cat Paw to the video timeline progress bar
-            vid_scrubber_y = ry + int(h * 0.62)
-            bar_start_x = rx + int(w * 0.15)
-            bar_width = int(w * 0.60)
-            target_x = bar_start_x + int(bar_width * (clamped_pct / 100.0))
+                virtual_hand_controller.show(target_x, scrubber_y - 30, state="normal")
+                time.sleep(0.08)
+                virtual_hand_controller.move_to(target_x, scrubber_y, duration=0.4, state="click")
+                time.sleep(0.1)
+                virtual_hand_controller.click(target_x, scrubber_y)
+                time.sleep(0.2)
+                virtual_hand_controller.hide()
 
-            virtual_hand_controller.show(target_x, vid_scrubber_y - 25, state="normal")
-            time.sleep(0.08)
-            virtual_hand_controller.move_to(target_x, vid_scrubber_y, duration=0.4, state="click")
-            time.sleep(0.1)
-            virtual_hand_controller.click(target_x, vid_scrubber_y)
-            time.sleep(0.2)
-            virtual_hand_controller.hide()
-
-            msg = f"Seeked to {clamped_pct}% on YouTube."
-            return {
-                "action": "seek_percentage",
-                "platform": "youtube",
-                "percent": clamped_pct,
-                "success": True,
-                "message": msg,
-                "spoken_response": msg,
-            }
+                msg = f"Seeked to {clamped_pct}% on Spotify."
+                return {
+                    "action": "seek_percentage",
+                    "platform": "spotify",
+                    "percent": clamped_pct,
+                    "success": True,
+                    "message": msg,
+                    "spoken_response": msg,
+                }
 
         msg = f"Seeked to {clamped_pct}%."
         return {
